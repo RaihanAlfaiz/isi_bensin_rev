@@ -352,13 +352,13 @@ class Sidebar(QWidget):
         logo_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo_lbl.setStyleSheet("background: transparent; border: none;")
 
-        station_lbl = QLabel("Station ID: 4882-X")
-        station_lbl.setFont(QFont("Inter", 12))
-        station_lbl.setStyleSheet("color: #b9cacb; opacity: 0.7; background: transparent;")
-        station_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.station_lbl = QLabel("Station ID: 4882-X")
+        self.station_lbl.setFont(QFont("Inter", 12))
+        self.station_lbl.setStyleSheet("color: #b9cacb; opacity: 0.7; background: transparent;")
+        self.station_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         brand_layout.addWidget(logo_lbl)
-        brand_layout.addWidget(station_lbl)
+        brand_layout.addWidget(self.station_lbl)
         layout.addWidget(brand_container)
 
         # 2. Global Status Indicator (Middle)
@@ -676,6 +676,9 @@ class Sidebar(QWidget):
         
         # Update Shadow Glow
         self.shadow_effect.setColor(cfg["glow"])
+
+    def set_station_id(self, station_id):
+        self.station_lbl.setText(f"Station ID: {station_id}")
 
     def paintEvent(self, event):
         painter = QPainter(self)

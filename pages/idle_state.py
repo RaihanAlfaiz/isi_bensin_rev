@@ -525,68 +525,14 @@ class IdleState(QWidget):
         self.hero.start_btn.clicked.connect(self.start_charging_clicked.emit)
         layout.addWidget(self.hero, 1) # Expand hero card to fill vertical space
 
-        # Bottom Row: 4 visual widgets
+        # Bottom Row: 3 visual widgets
         bottom_row = QHBoxLayout()
         bottom_row.setSpacing(20)
 
-        # Card 1: Grid Efficiency
-        self.grid_card = QWidget()
-        self.grid_card.setFixedHeight(110)
-        self.grid_card.setStyleSheet("""
-            QWidget {
-                background-color: rgba(45, 52, 73, 0.4);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 16px;
-            }
-        """)
-        
-        grid_layout = QHBoxLayout(self.grid_card)
-        grid_layout.setContentsMargins(20, 0, 20, 0)
-        grid_layout.setSpacing(16)
-        grid_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-
-        icon_box = QWidget()
-        icon_box.setFixedSize(52, 52)
-        icon_box.setStyleSheet("""
-            QWidget {
-                background-color: #222a3d;
-                border: none;
-                border-radius: 10px;
-            }
-        """)
-        icon_box_layout = QVBoxLayout(icon_box)
-        icon_box_layout.setContentsMargins(0, 0, 0, 0)
-        icon_box_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        bolt_icon = QLabel("bolt")
-        bolt_icon.setFont(QFont("Material Symbols Outlined", 30))
-        bolt_icon.setStyleSheet("color: #4edea3; background: transparent;")
-        bolt_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_box_layout.addWidget(bolt_icon)
-
-        grid_text_layout = QVBoxLayout()
-        grid_text_layout.setSpacing(2)
-        grid_text_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        
-        self.grid_lbl = QLabel("GRID EFFICIENCY")
-        self.grid_lbl.setFont(QFont("Space Grotesk", 11, QFont.Weight.Bold))
-        self.grid_lbl.setStyleSheet("color: #b9cacb; opacity: 0.6; background: transparent; border: none; letter-spacing: 1px;")
-        
-        grid_val = QLabel("98.4%")
-        grid_val.setFont(QFont("Space Grotesk", 24, QFont.Weight.Bold))
-        grid_val.setStyleSheet("color: #dbfcff; background: transparent; border: none;")
-
-        grid_text_layout.addWidget(self.grid_lbl)
-        grid_text_layout.addWidget(grid_val)
-
-        grid_layout.addWidget(icon_box)
-        grid_layout.addLayout(grid_text_layout)
-        grid_layout.addStretch()
-
-        # Card 2: Last Transaction
+        # Card 1: Last Transaction
         self.last_tx_card = LastTxBentoCard()
 
-        # Card 3: Live Updates
+        # Card 2: Live Updates
         self.updates_card = QWidget()
         self.updates_card.setFixedHeight(110)
         self.updates_card.setStyleSheet("""
@@ -621,7 +567,7 @@ class IdleState(QWidget):
         updates_layout.addLayout(updates_header)
         updates_layout.addWidget(self.feed)
 
-        # Card 4: Weather
+        # Card 3: Weather
         self.weather_card = QWidget()
         self.weather_card.setFixedHeight(110)
         self.weather_card.setStyleSheet("""
@@ -661,17 +607,12 @@ class IdleState(QWidget):
         weather_layout.addStretch()
         weather_layout.addWidget(sun_icon)
 
-        # Add cards to bottom row with proportional widths (Grid: 12, LastTx: 16, Ticker: 22, Weather: 10)
-        bottom_row.addWidget(self.grid_card, 12)
-        bottom_row.addWidget(self.last_tx_card, 16)
-        bottom_row.addWidget(self.updates_card, 22)
-        bottom_row.addWidget(self.weather_card, 10)
+        # Add cards to bottom row with proportional widths (LastTx: 20, Ticker: 28, Weather: 16)
+        bottom_row.addWidget(self.last_tx_card, 20)
+        bottom_row.addWidget(self.updates_card, 28)
+        bottom_row.addWidget(self.weather_card, 16)
 
         layout.addLayout(bottom_row)
-
-        # Bouncing Tooltip at the very bottom
-        self.tooltip = BouncingTooltip()
-        layout.addWidget(self.tooltip)
 
     def add_system_event(self, text_en, text_id, icon="info", color="#00dbe9"):
         time_str = QTime.currentTime().toString("HH:mm")
@@ -680,19 +621,15 @@ class IdleState(QWidget):
     def update_language(self, lang):
         # Update Hero Section
         self.hero.update_language(lang)
-        # Update Bouncing Tooltip
-        self.tooltip.update_language(lang)
         # Update Last Transaction Card
         self.last_tx_card.update_language(lang)
         # Update Feed Language
         self.feed.update_language(lang)
         # Update Cards Labels
         if lang == "en":
-            self.grid_lbl.setText("GRID EFFICIENCY")
             self.updates_lbl.setText("LIVE UPDATES")
             self.weather_lbl.setText("Sunny")
         else: # id
-            self.grid_lbl.setText("EFISIENSI JARINGAN")
             self.updates_lbl.setText("INFORMASI TERKINI")
             self.weather_lbl.setText("Cerah")
 

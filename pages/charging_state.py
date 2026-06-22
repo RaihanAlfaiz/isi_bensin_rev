@@ -205,9 +205,10 @@ class ChargingState(QWidget):
         self.seconds_elapsed = 1275
         self.energy_delivered = 5.6
         self.gauge.percentage = 78
-        self.gauge.kw = 120.4
+        target_kw = getattr(self, "max_power_kw", 120.4)
+        self.gauge.kw = target_kw
         self.gauge.pct_val.setText("78")
-        self.gauge.kw_val.setText("120.4")
+        self.gauge.kw_val.setText(f"{self.gauge.kw:.1f}")
         self.update_timer_label()
         self.update_energy_label()
         self.sim_timer.start(1000) # Update every 1 second
@@ -220,9 +221,10 @@ class ChargingState(QWidget):
         self.seconds_elapsed += 1
         self.update_timer_label()
         
-        # Fluctuate kW rate
-        fluq = random.uniform(-0.3, 0.3)
-        self.gauge.kw = max(115.0, min(125.0, self.gauge.kw + fluq))
+        # Fluctuate kW rate around max_power_kw
+        target_kw = getattr(self, "max_power_kw", 120.4)
+        fluq = random.uniform(-target_kw * 0.005, target_kw * 0.005) # +/- 0.5%
+        self.gauge.kw = max(target_kw * 0.95, min(target_kw * 1.05, self.gauge.kw + fluq))
         self.gauge.kw_val.setText(f"{self.gauge.kw:.1f}")
         
         # Accumulate energy delivered
@@ -382,6 +384,9 @@ class ChargingState(QWidget):
             self.stop_desc.setText("Tekan tombol fisik di bawah")
             self.gauge.title_lbl.setText("TINGKAT DAYA")
             
+    def set_power_limit(self, max_power_kw):
+        self.max_power_kw = max_power_kw
+        
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)

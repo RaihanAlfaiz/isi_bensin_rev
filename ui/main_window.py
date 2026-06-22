@@ -32,6 +32,10 @@ class MainWindow(QMainWindow):
         layout.setSpacing(0)
 
         self.sidebar = Sidebar()
+        self.station_id = "4882-X"
+        self.max_power_kw = 350
+        self.price_per_kwh = 2500
+        self.sidebar.set_station_id(self.station_id)
         
         self.stacked_widget = QStackedWidget()
         self.idle_page = IdleState()
@@ -148,6 +152,8 @@ class MainWindow(QMainWindow):
             icon="bolt",
             color="#00f0ff"
         )
+        # Pass power limit to page
+        self.charging_page.set_power_limit(self.max_power_kw)
         # Align page translation
         self.charging_page.update_language(self.sidebar.current_lang)
         # Show charging status page
@@ -160,7 +166,7 @@ class MainWindow(QMainWindow):
         # Calculate cost and format session details
         energy = self.charging_page.energy_delivered
         duration_sec = self.charging_page.seconds_elapsed
-        cost_val = int(energy * 2500)
+        cost_val = int(energy * self.price_per_kwh)
         cost_formatted = f"Rp {cost_val:,}".replace(",", ".")
         
         h = duration_sec // 3600
@@ -210,7 +216,8 @@ class MainWindow(QMainWindow):
         # Pass variables to finishing page
         self.finishing_page.set_session_details(
             duration_sec,
-            energy
+            energy,
+            self.price_per_kwh
         )
         # Align page translation
         self.finishing_page.update_language(self.sidebar.current_lang)

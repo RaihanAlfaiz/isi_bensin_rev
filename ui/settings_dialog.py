@@ -8,7 +8,7 @@ class SettingsDialog(QDialog):
         self.main_win = main_win
         
         self.setWindowTitle("VOLTCORE Simulator Control Panel")
-        self.resize(480, 560)
+        self.resize(480, 680)
         self.setStyleSheet("""
             QDialog {
                 background-color: #0b1326;
@@ -101,6 +101,38 @@ class SettingsDialog(QDialog):
         status_layout.addWidget(status_lbl)
         status_layout.addWidget(self.status_cb, 1)
         layout.addLayout(status_layout)
+
+        # 1.5. Kiosk Config Section
+        kiosk_group = QVBoxLayout()
+        kiosk_group.setSpacing(8)
+        
+        kiosk_hdr = QLabel("Kiosk Core Settings")
+        kiosk_hdr.setFont(QFont("Space Grotesk", 11, QFont.Weight.Bold))
+        kiosk_hdr.setStyleSheet("color: #00f0ff;")
+        kiosk_group.addWidget(kiosk_hdr)
+        
+        kiosk_grid = QGridLayout()
+        kiosk_grid.setSpacing(8)
+        
+        kiosk_grid.addWidget(QLabel("Station ID:"), 0, 0)
+        self.station_id_input = QLineEdit()
+        self.station_id_input.setText(self.main_win.station_id)
+        kiosk_grid.addWidget(self.station_id_input, 0, 1)
+        
+        kiosk_grid.addWidget(QLabel("Max Power (kW):"), 1, 0)
+        self.max_power_spin = QSpinBox()
+        self.max_power_spin.setRange(22, 500)
+        self.max_power_spin.setValue(self.main_win.max_power_kw)
+        kiosk_grid.addWidget(self.max_power_spin, 1, 1)
+        
+        kiosk_grid.addWidget(QLabel("Price / kWh (Rp):"), 2, 0)
+        self.price_spin = QSpinBox()
+        self.price_spin.setRange(500, 10000)
+        self.price_spin.setValue(self.main_win.price_per_kwh)
+        kiosk_grid.addWidget(self.price_spin, 2, 1)
+        
+        kiosk_group.addLayout(kiosk_grid)
+        layout.addLayout(kiosk_group)
 
         # 2. Queue Section
         queue_group = QVBoxLayout()
@@ -215,6 +247,14 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.apply_btn)
 
     def apply_settings(self):
+        # 0. Update Kiosk Config
+        new_station_id = self.station_id_input.text()
+        self.main_win.station_id = new_station_id
+        self.main_win.sidebar.set_station_id(new_station_id)
+        
+        self.main_win.max_power_kw = self.max_power_spin.value()
+        self.main_win.price_per_kwh = self.price_spin.value()
+
         # 1. Update Status
         status_map = {
             "Available": "idle",

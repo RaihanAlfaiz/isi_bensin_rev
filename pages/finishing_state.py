@@ -147,13 +147,15 @@ class FinishingState(QWidget):
         # Default/Initial variables to display
         self.final_time_sec = 3732  # 01:02:12
         self.final_energy_kwh = 12.4
+        self.price_per_kwh = 2500
         
         self.setup_ui()
         self.update_language("en")
         
-    def set_session_details(self, elapsed_seconds, energy_kwh):
+    def set_session_details(self, elapsed_seconds, energy_kwh, price_per_kwh=2500):
         self.final_time_sec = elapsed_seconds
         self.final_energy_kwh = energy_kwh
+        self.price_per_kwh = price_per_kwh
         self.update_values()
         
     def update_values(self):
@@ -166,8 +168,8 @@ class FinishingState(QWidget):
         # Energy
         self.energy_row.set_value(f"{self.final_energy_kwh:.1f}")
         
-        # Cost (energy * 2500 IDR/kWh)
-        cost_val = int(self.final_energy_kwh * 2500)
+        # Cost (energy * price_per_kwh IDR/kWh)
+        cost_val = int(self.final_energy_kwh * self.price_per_kwh)
         # format as Indonesian Rupiah
         cost_formatted = f"Rp {cost_val:,}".replace(",", ".")
         self.cost_row.set_value(cost_formatted)
