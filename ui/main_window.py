@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QStackedWidget
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QDateTime
 from PyQt6.QtGui import QFontDatabase
 from ui.widgets.sidebar import Sidebar
 from pages.idle_state import IdleState
@@ -46,8 +46,37 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.charging_page)
         self.stacked_widget.addWidget(self.finishing_page)
 
+        # Session data initialization
+        self.last_session_details = {
+            "date": "18 Jun 2026",
+            "time": "14:35 WIB",
+            "soc": "85%",
+            "energy": "20.4 kWh",
+            "duration": "01:35:12",
+            "cost": "Rp 51.000"
+        }
+        
+        # Sync initial session data
+        self.sidebar.update_last_transaction(
+            self.last_session_details["date"],
+            self.last_session_details["time"],
+            self.last_session_details["soc"],
+            self.last_session_details["energy"],
+            self.last_session_details["duration"],
+            self.last_session_details["cost"]
+        )
+        self.idle_page.last_tx_card.update_session(
+            self.last_session_details["date"],
+            self.last_session_details["time"],
+            self.last_session_details["soc"],
+            self.last_session_details["energy"],
+            self.last_session_details["duration"],
+            self.last_session_details["cost"]
+        )
+
         # Connect signals
         self.sidebar.language_changed.connect(self.on_language_changed)
+        self.sidebar.settings_btn.clicked.connect(self.open_settings_dialog)
         self.idle_page.start_charging_clicked.connect(self.on_start_charging)
         self.plugin_page.proceed_to_payment.connect(self.on_proceed_to_payment)
         self.payment_page.payment_completed.connect(self.on_payment_completed)
@@ -57,6 +86,25 @@ class MainWindow(QMainWindow):
         # Add to layout with stretch factors for 20% / 80% proportion
         layout.addWidget(self.sidebar, 2)
         layout.addWidget(self.stacked_widget, 8)
+
+    def open_settings_dialog(self):
+        from ui.settings_dialog import SettingsDialog
+        dialog = SettingsDialog(self)
+        dialog.exec()
+
+    def set_system_status(self, state):
+        self.sidebar.set_status_state(state)
+        # Switch pages based on state
+        if state in ["idle", "available"]:
+            self.stacked_widget.setCurrentWidget(self.idle_page)
+        elif state == "preparing":
+            self.stacked_widget.setCurrentWidget(self.plugin_page)
+        elif state == "charging":
+            self.stacked_widget.setCurrentWidget(self.charging_page)
+        elif state == "finishing":
+            self.stacked_widget.setCurrentWidget(self.finishing_page)
+        elif state in ["reserved", "scheduled", "faulted"]:
+            self.stacked_widget.setCurrentWidget(self.idle_page)
 
     def on_language_changed(self, lang):
         # Update all sidebar and main content views
@@ -70,6 +118,13 @@ class MainWindow(QMainWindow):
     def on_start_charging(self):
         # Switch sidebar status view to preparing mode
         self.sidebar.set_status_state("preparing")
+        # Add system event
+        self.idle_page.add_system_event(
+            "Vehicle Connected",
+            "Kendaraan Terhubung",
+            icon="link",
+            color="#4edea3"
+        )
         # Align page translation with currently active language
         self.plugin_page.update_language(self.sidebar.current_lang)
         # Show plugin/video page
@@ -86,6 +141,13 @@ class MainWindow(QMainWindow):
     def on_payment_completed(self):
         # Switch sidebar status view to charging mode
         self.sidebar.set_status_state("charging")
+        # Add system event
+        self.idle_page.add_system_event(
+            "Charging Started",
+            "Pengisian Dimulai",
+            icon="bolt",
+            color="#00f0ff"
+        )
         # Align page translation
         self.charging_page.update_language(self.sidebar.current_lang)
         # Show charging status page
@@ -94,10 +156,61 @@ class MainWindow(QMainWindow):
     def on_charging_completed(self):
         # Switch sidebar status view to finishing mode
         self.sidebar.set_status_state("finishing")
+        
+        # Calculate cost and format session details
+        energy = self.charging_page.energy_delivered
+        duration_sec = self.charging_page.seconds_elapsed
+        cost_val = int(energy * 2500)
+        cost_formatted = f"Rp {cost_val:,}".replace(",", ".")
+        
+        h = duration_sec // 3600
+        m = (duration_sec % 3600) // 60
+        s = duration_sec % 60
+        duration_formatted = f"{h:02d}:{m:02d}:{s:02d}"
+        
+        current_dt = QDateTime.currentDateTime()
+        date_str = current_dt.toString("dd MMM yyyy")
+        time_str = current_dt.toString("HH:mm") + " WIB"
+        
+        self.last_session_details = {
+            "date": date_str,
+            "time": time_str,
+            "soc": "100%",
+            "energy": f"{energy:.1f} kWh",
+            "duration": duration_formatted,
+            "cost": cost_formatted
+        }
+        
+        # Update last transaction info on both widgets
+        self.idle_page.last_tx_card.update_session(
+            self.last_session_details["date"],
+            self.last_session_details["time"],
+            self.last_session_details["soc"],
+            self.last_session_details["energy"],
+            self.last_session_details["duration"],
+            self.last_session_details["cost"]
+        )
+        self.sidebar.update_last_transaction(
+            self.last_session_details["date"],
+            self.last_session_details["time"],
+            self.last_session_details["soc"],
+            self.last_session_details["energy"],
+            self.last_session_details["duration"],
+            self.last_session_details["cost"]
+        )
+        
+        # Add system event
+        self.idle_page.add_system_event(
+            "Charging Finished",
+            "Pengisian Selesai",
+            icon="check_circle",
+            color="#b57cff"
+        )
+        
         # Pass variables to finishing page
         self.finishing_page.set_session_details(
-            self.charging_page.seconds_elapsed,
-            self.charging_page.energy_delivered
+            duration_sec,
+            energy
         )
         # Align page translation
         self.finishing_page.update_language(self.sidebar.current_lang)

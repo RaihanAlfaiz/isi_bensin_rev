@@ -1,5 +1,5 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGraphicsDropShadowEffect
-from PyQt6.QtCore import Qt, QTimer, QRect, QRectF, QPropertyAnimation, pyqtSignal
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QGraphicsDropShadowEffect
+from PyQt6.QtCore import Qt, QTimer, QRect, QRectF, QPropertyAnimation, pyqtSignal, QTime
 from PyQt6.QtGui import QPainter, QColor, QFont, QPixmap, QLinearGradient, QPainterPath
 from config import BASE_DIR
 
@@ -301,14 +301,219 @@ class HeroSection(QWidget):
         painter.fillRect(rect, gradient)
 
 
+class LastTxBentoCard(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(110)
+        self.setStyleSheet("""
+            QWidget {
+                background-color: rgba(45, 52, 73, 0.4);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 16px;
+            }
+        """)
+        self.current_lang = "en"
+        self.session_data = {
+            "date": "18 Jun 2026",
+            "time": "14:35 WIB",
+            "soc": "85%",
+            "energy": "20.4 kWh",
+            "duration": "01:35:12",
+            "cost": "Rp 51.000"
+        }
+        
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(16, 10, 16, 10)
+        main_layout.setSpacing(6)
+        
+        header = QHBoxLayout()
+        header.setSpacing(6)
+        header.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+        icon = QLabel("history")
+        icon.setFont(QFont("Material Symbols Outlined", 14))
+        icon.setStyleSheet("color: #4edea3; background: transparent; border: none;")
+        
+        self.title_lbl = QLabel("LAST TRANSACTION")
+        self.title_lbl.setFont(QFont("Space Grotesk", 10, QFont.Weight.Bold))
+        self.title_lbl.setStyleSheet("color: #4edea3; background: transparent; border: none; letter-spacing: 1px;")
+        
+        header.addWidget(icon)
+        header.addWidget(self.title_lbl)
+        main_layout.addLayout(header)
+        
+        grid_widget = QWidget()
+        grid_widget.setStyleSheet("background: transparent; border: none;")
+        self.grid = QGridLayout(grid_widget)
+        self.grid.setContentsMargins(0, 0, 0, 0)
+        self.grid.setHorizontalSpacing(12)
+        self.grid.setVerticalSpacing(2)
+        
+        self.lbl_date = QLabel("Date:")
+        self.val_date = QLabel()
+        self.lbl_time = QLabel("Time:")
+        self.val_time = QLabel()
+        self.lbl_soc = QLabel("Final SOC:")
+        self.val_soc = QLabel()
+        
+        self.lbl_energy = QLabel("Energy:")
+        self.val_energy = QLabel()
+        self.lbl_dur = QLabel("Duration:")
+        self.val_dur = QLabel()
+        self.lbl_cost = QLabel("Cost:")
+        self.val_cost = QLabel()
+        
+        label_style = "color: #b9cacb; opacity: 0.7; background: transparent; border: none;"
+        value_style = "color: #ffffff; background: transparent; border: none; font-weight: bold;"
+        
+        for lbl in [self.lbl_date, self.lbl_time, self.lbl_soc, self.lbl_energy, self.lbl_dur, self.lbl_cost]:
+            lbl.setFont(QFont("Inter", 9))
+            lbl.setStyleSheet(label_style)
+            
+        for val in [self.val_date, self.val_time, self.val_soc, self.val_energy, self.val_dur, self.val_cost]:
+            val.setFont(QFont("Space Grotesk", 9))
+            val.setStyleSheet(value_style)
+            
+        self.grid.addWidget(self.lbl_date, 0, 0)
+        self.grid.addWidget(self.val_date, 0, 1)
+        self.grid.addWidget(self.lbl_time, 1, 0)
+        self.grid.addWidget(self.val_time, 1, 1)
+        self.grid.addWidget(self.lbl_soc, 2, 0)
+        self.grid.addWidget(self.val_soc, 2, 1)
+        
+        self.grid.addWidget(self.lbl_energy, 0, 2)
+        self.grid.addWidget(self.val_energy, 0, 3)
+        self.grid.addWidget(self.lbl_dur, 1, 2)
+        self.grid.addWidget(self.val_dur, 1, 3)
+        self.grid.addWidget(self.lbl_cost, 2, 2)
+        self.grid.addWidget(self.val_cost, 2, 3)
+        
+        main_layout.addWidget(grid_widget)
+        self.refresh_display()
+        
+    def update_session(self, date, time, soc, energy, duration, cost):
+        self.session_data = {
+            "date": date,
+            "time": time,
+            "soc": soc,
+            "energy": energy,
+            "duration": duration,
+            "cost": cost
+        }
+        self.refresh_display()
+        
+    def update_language(self, lang):
+        self.current_lang = lang
+        if lang == "en":
+            self.title_lbl.setText("LAST TRANSACTION")
+            self.lbl_date.setText("Date:")
+            self.lbl_time.setText("Time:")
+            self.lbl_soc.setText("Final SOC:")
+            self.lbl_energy.setText("Energy:")
+            self.lbl_dur.setText("Duration:")
+            self.lbl_cost.setText("Cost:")
+        else:
+            self.title_lbl.setText("TRANSAKSI TERAKHIR")
+            self.lbl_date.setText("Tanggal:")
+            self.lbl_time.setText("Waktu:")
+            self.lbl_soc.setText("Final SOC:")
+            self.lbl_energy.setText("Energi:")
+            self.lbl_dur.setText("Durasi:")
+            self.lbl_cost.setText("Biaya:")
+        self.refresh_display()
+        
+    def refresh_display(self):
+        d = self.session_data
+        self.val_date.setText(d["date"])
+        self.val_time.setText(d["time"])
+        self.val_soc.setText(d["soc"])
+        self.val_energy.setText(d["energy"])
+        self.val_dur.setText(d["duration"])
+        self.val_cost.setText(d["cost"])
+
+
+class LiveUpdatesFeed(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.current_lang = "en"
+        self.events = [
+            {
+                "time": "14:30",
+                "text_en": "Reserved Session Created",
+                "text_id": "Sesi Reservasi Dibuat",
+                "icon": "bookmark",
+                "color": "#ffaa44"
+            },
+            {
+                "time": "14:35",
+                "text_en": "Queue Updated (2 waiting)",
+                "text_id": "Antrean Diperbarui (2 menunggu)",
+                "icon": "people",
+                "color": "#00dbe9"
+            }
+        ]
+        
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(6)
+        
+        self.refresh_display()
+        
+    def add_event(self, time_str, text_en, text_id, icon, color):
+        self.events.insert(0, {
+            "time": time_str,
+            "text_en": text_en,
+            "text_id": text_id,
+            "icon": icon,
+            "color": color
+        })
+        if len(self.events) > 2:
+            self.events = self.events[:2]
+        self.refresh_display()
+        
+    def update_language(self, lang):
+        self.current_lang = lang
+        self.refresh_display()
+        
+    def refresh_display(self):
+        while self.layout.count():
+            item = self.layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+                
+        for event in self.events:
+            event_widget = QWidget()
+            event_widget.setStyleSheet("background: transparent; border: none;")
+            h_layout = QHBoxLayout(event_widget)
+            h_layout.setContentsMargins(0, 0, 0, 0)
+            h_layout.setSpacing(8)
+            
+            icon_lbl = QLabel(event["icon"])
+            icon_lbl.setFont(QFont("Material Symbols Outlined", 14))
+            icon_lbl.setStyleSheet(f"color: {event['color']}; background: transparent; border: none;")
+            
+            time_lbl = QLabel(f"[{event['time']}]")
+            time_lbl.setFont(QFont("Space Grotesk", 10, QFont.Weight.Bold))
+            time_lbl.setStyleSheet("color: rgba(255, 255, 255, 0.4); background: transparent; border: none;")
+            
+            text_str = event["text_en"] if self.current_lang == "en" else event["text_id"]
+            text_lbl = QLabel(text_str)
+            text_lbl.setFont(QFont("Inter", 10))
+            text_lbl.setStyleSheet("color: #b9cacb; background: transparent; border: none;")
+            text_lbl.setWordWrap(True)
+            
+            h_layout.addWidget(icon_lbl)
+            h_layout.addWidget(time_lbl)
+            h_layout.addWidget(text_lbl, 1)
+            
+            self.layout.addWidget(event_widget)
+
+
 class IdleState(QWidget):
     start_charging_clicked = pyqtSignal()
     
     def __init__(self):
         super().__init__()
-
-        self.ticker_text_en = " • Station 4882-X: Full compatibility with all CSS standard models • Energy sourced 100% from solar array 04 • Welcome to VOLTCORE - Ultra Fast EV Charging Network • Special rate of $0.25/kWh until midnight • Download the VOLTCORE app for loyalty rewards •"
-        self.ticker_text_id = " • Stasiun 4882-X: Kompatibilitas penuh dengan semua model standar CSS • Energi bersumber 100% dari panel surya 04 • Selamat datang di VOLTCORE - Jaringan Pengisian Daya EV Ultra Cepat • Tarif khusus Rp 4.000/kWh hingga tengah malam • Unduh aplikasi VOLTCORE untuk hadiah loyalitas •"
 
         # Main Layout
         layout = QVBoxLayout(self)
@@ -320,13 +525,13 @@ class IdleState(QWidget):
         self.hero.start_btn.clicked.connect(self.start_charging_clicked.emit)
         layout.addWidget(self.hero, 1) # Expand hero card to fill vertical space
 
-        # Bottom Row: 3 visual widgets
+        # Bottom Row: 4 visual widgets
         bottom_row = QHBoxLayout()
         bottom_row.setSpacing(20)
 
         # Card 1: Grid Efficiency
         self.grid_card = QWidget()
-        self.grid_card.setFixedHeight(96)
+        self.grid_card.setFixedHeight(110)
         self.grid_card.setStyleSheet("""
             QWidget {
                 background-color: rgba(45, 52, 73, 0.4);
@@ -378,9 +583,12 @@ class IdleState(QWidget):
         grid_layout.addLayout(grid_text_layout)
         grid_layout.addStretch()
 
-        # Card 2: Live Updates (Ticker)
+        # Card 2: Last Transaction
+        self.last_tx_card = LastTxBentoCard()
+
+        # Card 3: Live Updates
         self.updates_card = QWidget()
-        self.updates_card.setFixedHeight(96)
+        self.updates_card.setFixedHeight(110)
         self.updates_card.setStyleSheet("""
             QWidget {
                 background-color: rgba(6, 14, 32, 0.45);
@@ -390,7 +598,7 @@ class IdleState(QWidget):
         """)
         
         updates_layout = QVBoxLayout(self.updates_card)
-        updates_layout.setContentsMargins(20, 14, 20, 14)
+        updates_layout.setContentsMargins(20, 12, 20, 12)
         updates_layout.setSpacing(6)
 
         updates_header = QHBoxLayout()
@@ -408,14 +616,14 @@ class IdleState(QWidget):
         updates_header.addWidget(info_icon)
         updates_header.addWidget(self.updates_lbl)
 
-        self.ticker = MarqueeLabel(self.ticker_text_en)
+        self.feed = LiveUpdatesFeed()
 
         updates_layout.addLayout(updates_header)
-        updates_layout.addWidget(self.ticker)
+        updates_layout.addWidget(self.feed)
 
-        # Card 3: Weather
+        # Card 4: Weather
         self.weather_card = QWidget()
-        self.weather_card.setFixedHeight(96)
+        self.weather_card.setFixedHeight(110)
         self.weather_card.setStyleSheet("""
             QWidget {
                 background-color: rgba(45, 52, 73, 0.4);
@@ -453,8 +661,9 @@ class IdleState(QWidget):
         weather_layout.addStretch()
         weather_layout.addWidget(sun_icon)
 
-        # Add cards to bottom row with proportional widths (Grid: 1.2, Ticker: 2.2, Weather: 1.0)
+        # Add cards to bottom row with proportional widths (Grid: 12, LastTx: 16, Ticker: 22, Weather: 10)
         bottom_row.addWidget(self.grid_card, 12)
+        bottom_row.addWidget(self.last_tx_card, 16)
         bottom_row.addWidget(self.updates_card, 22)
         bottom_row.addWidget(self.weather_card, 10)
 
@@ -464,22 +673,28 @@ class IdleState(QWidget):
         self.tooltip = BouncingTooltip()
         layout.addWidget(self.tooltip)
 
+    def add_system_event(self, text_en, text_id, icon="info", color="#00dbe9"):
+        time_str = QTime.currentTime().toString("HH:mm")
+        self.feed.add_event(time_str, text_en, text_id, icon, color)
+
     def update_language(self, lang):
         # Update Hero Section
         self.hero.update_language(lang)
         # Update Bouncing Tooltip
         self.tooltip.update_language(lang)
+        # Update Last Transaction Card
+        self.last_tx_card.update_language(lang)
+        # Update Feed Language
+        self.feed.update_language(lang)
         # Update Cards Labels
         if lang == "en":
             self.grid_lbl.setText("GRID EFFICIENCY")
             self.updates_lbl.setText("LIVE UPDATES")
             self.weather_lbl.setText("Sunny")
-            self.ticker.full_text = self.ticker_text_en
         else: # id
             self.grid_lbl.setText("EFISIENSI JARINGAN")
             self.updates_lbl.setText("INFORMASI TERKINI")
             self.weather_lbl.setText("Cerah")
-            self.ticker.full_text = self.ticker_text_id
 
     def paintEvent(self, event):
         painter = QPainter(self)

@@ -1,10 +1,322 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGraphicsDropShadowEffect
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QGraphicsDropShadowEffect
 from PyQt6.QtCore import Qt, QPropertyAnimation, QRect, QRectF, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QFont, QFontDatabase, QPixmap
 from config import BASE_DIR
 
+class SidebarLastTxCard(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.current_lang = "en"
+        self.session_data = {
+            "date": "18 Jun 2026",
+            "time": "14:35 WIB",
+            "soc": "85%",
+            "energy": "20.4 kWh",
+            "duration": "01:35:12",
+            "cost": "Rp 51.000"
+        }
+        
+        self.setStyleSheet("""
+            QWidget {
+                background-color: rgba(45, 52, 73, 0.25);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: 12px;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+        
+        header = QHBoxLayout()
+        header.setSpacing(6)
+        header.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+        icon = QLabel("history")
+        icon.setFont(QFont("Material Symbols Outlined", 14))
+        icon.setStyleSheet("color: #4edea3; background: transparent; border: none;")
+        
+        self.title_lbl = QLabel("LAST TRANSACTION")
+        self.title_lbl.setFont(QFont("Space Grotesk", 9, QFont.Weight.Bold))
+        self.title_lbl.setStyleSheet("color: #4edea3; background: transparent; border: none; letter-spacing: 1.0px;")
+        
+        header.addWidget(icon)
+        header.addWidget(self.title_lbl)
+        layout.addLayout(header)
+        
+        grid_widget = QWidget()
+        grid_widget.setStyleSheet("background: transparent; border: none;")
+        self.grid = QGridLayout(grid_widget)
+        self.grid.setContentsMargins(0, 0, 0, 0)
+        self.grid.setHorizontalSpacing(8)
+        self.grid.setVerticalSpacing(2)
+        
+        self.lbl_date = QLabel("Date:")
+        self.val_date = QLabel()
+        self.lbl_time = QLabel("Time:")
+        self.val_time = QLabel()
+        self.lbl_soc = QLabel("SOC:")
+        self.val_soc = QLabel()
+        
+        self.lbl_energy = QLabel("Energy:")
+        self.val_energy = QLabel()
+        self.lbl_dur = QLabel("Duration:")
+        self.val_dur = QLabel()
+        self.lbl_cost = QLabel("Cost:")
+        self.val_cost = QLabel()
+        
+        label_style = "color: #b9cacb; opacity: 0.6; background: transparent; border: none;"
+        value_style = "color: #ffffff; background: transparent; border: none; font-weight: bold;"
+        
+        for lbl in [self.lbl_date, self.lbl_time, self.lbl_soc, self.lbl_energy, self.lbl_dur, self.lbl_cost]:
+            lbl.setFont(QFont("Inter", 8))
+            lbl.setStyleSheet(label_style)
+            
+        for val in [self.val_date, self.val_time, self.val_soc, self.val_energy, self.val_dur, self.val_cost]:
+            val.setFont(QFont("Space Grotesk", 8))
+            val.setStyleSheet(value_style)
+            
+        self.grid.addWidget(self.lbl_date, 0, 0)
+        self.grid.addWidget(self.val_date, 0, 1)
+        self.grid.addWidget(self.lbl_time, 1, 0)
+        self.grid.addWidget(self.val_time, 1, 1)
+        self.grid.addWidget(self.lbl_soc, 2, 0)
+        self.grid.addWidget(self.val_soc, 2, 1)
+        
+        self.grid.addWidget(self.lbl_energy, 0, 2)
+        self.grid.addWidget(self.val_energy, 0, 3)
+        self.grid.addWidget(self.lbl_dur, 1, 2)
+        self.grid.addWidget(self.val_dur, 1, 3)
+        self.grid.addWidget(self.lbl_cost, 2, 2)
+        self.grid.addWidget(self.val_cost, 2, 3)
+        
+        layout.addWidget(grid_widget)
+        self.refresh_display()
+        
+    def update_session(self, date, time, soc, energy, duration, cost):
+        self.session_data = {
+            "date": date,
+            "time": time,
+            "soc": soc,
+            "energy": energy,
+            "duration": duration,
+            "cost": cost
+        }
+        self.refresh_display()
+        
+    def update_language(self, lang):
+        self.current_lang = lang
+        if lang == "en":
+            self.title_lbl.setText("LAST TRANSACTION")
+            self.lbl_date.setText("Date:")
+            self.lbl_time.setText("Time:")
+            self.lbl_soc.setText("SOC:")
+            self.lbl_energy.setText("Energy:")
+            self.lbl_dur.setText("Dur:")
+            self.lbl_cost.setText("Cost:")
+        else:
+            self.title_lbl.setText("TRANSAKSI TERAKHIR")
+            self.lbl_date.setText("Tanggal:")
+            self.lbl_time.setText("Waktu:")
+            self.lbl_soc.setText("SOC:")
+            self.lbl_energy.setText("Energi:")
+            self.lbl_dur.setText("Durasi:")
+            self.lbl_cost.setText("Biaya:")
+        self.refresh_display()
+        
+    def refresh_display(self):
+        d = self.session_data
+        self.val_date.setText(d["date"])
+        self.val_time.setText(d["time"])
+        self.val_soc.setText(d["soc"])
+        self.val_energy.setText(d["energy"])
+        self.val_dur.setText(d["duration"])
+        self.val_cost.setText(d["cost"])
+
+class SidebarReservationCard(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.current_lang = "en"
+        self.status = "Reserved"
+        self.user = "Booked by User"
+        self.start_time = "Start Time: 14:30 WIB"
+        
+        self.setStyleSheet("""
+            QWidget {
+                background-color: rgba(178, 89, 0, 0.15);
+                border: 1px solid rgba(255, 170, 68, 0.3);
+                border-radius: 12px;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(4)
+        
+        header = QHBoxLayout()
+        header.setSpacing(6)
+        header.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+        self.icon = QLabel("bookmark")
+        self.icon.setFont(QFont("Material Symbols Outlined", 14))
+        self.icon.setStyleSheet("color: #ffaa44; background: transparent; border: none;")
+        
+        self.title_lbl = QLabel("RESERVATION INFO")
+        self.title_lbl.setFont(QFont("Space Grotesk", 9, QFont.Weight.Bold))
+        self.title_lbl.setStyleSheet("color: #ffaa44; background: transparent; border: none; letter-spacing: 1px;")
+        
+        header.addWidget(self.icon)
+        header.addWidget(self.title_lbl)
+        layout.addLayout(header)
+        
+        self.status_lbl = QLabel()
+        self.status_lbl.setFont(QFont("Space Grotesk", 10, QFont.Weight.Bold))
+        self.status_lbl.setStyleSheet("color: #ffffff; background: transparent; border: none;")
+        
+        self.user_lbl = QLabel()
+        self.user_lbl.setFont(QFont("Inter", 9))
+        self.user_lbl.setStyleSheet("color: #b9cacb; background: transparent; border: none;")
+        
+        self.time_lbl = QLabel()
+        self.time_lbl.setFont(QFont("Inter", 9))
+        self.time_lbl.setStyleSheet("color: #b9cacb; background: transparent; border: none;")
+        
+        layout.addWidget(self.status_lbl)
+        layout.addWidget(self.user_lbl)
+        layout.addWidget(self.time_lbl)
+        
+        self.refresh_display()
+        
+    def set_reservation_details(self, status_str, user_str, time_str):
+        self.status = status_str
+        self.user = user_str
+        self.start_time = time_str
+        
+        # Adjust stylesheet depending on Scheduled vs Reserved
+        if "Scheduled" in status_str or "Terjadwal" in status_str:
+            self.setStyleSheet("""
+                QWidget {
+                    background-color: rgba(58, 63, 88, 0.25);
+                    border: 1px solid rgba(143, 158, 255, 0.3);
+                    border-radius: 12px;
+                }
+            """)
+            self.icon.setStyleSheet("color: #8f9eff; background: transparent; border: none;")
+            self.title_lbl.setStyleSheet("color: #8f9eff; background: transparent; border: none; letter-spacing: 1px;")
+        else:
+            self.setStyleSheet("""
+                QWidget {
+                    background-color: rgba(178, 89, 0, 0.15);
+                    border: 1px solid rgba(255, 170, 68, 0.3);
+                    border-radius: 12px;
+                }
+            """)
+            self.icon.setStyleSheet("color: #ffaa44; background: transparent; border: none;")
+            self.title_lbl.setStyleSheet("color: #ffaa44; background: transparent; border: none; letter-spacing: 1px;")
+            
+        self.refresh_display()
+        
+    def update_language(self, lang):
+        self.current_lang = lang
+        if lang == "en":
+            self.title_lbl.setText("RESERVATION INFO")
+        else:
+            self.title_lbl.setText("INFO RESERVASI")
+        self.refresh_display()
+        
+    def refresh_display(self):
+        status_text = self.status
+        user_text = self.user
+        time_text = self.start_time
+        
+        if self.current_lang != "en":
+            if status_text == "Reserved":
+                status_text = "Dipesan"
+            elif status_text == "Scheduled":
+                status_text = "Terjadwal"
+                
+            if user_text == "Booked by User":
+                user_text = "Dipesan oleh Pengguna"
+            elif user_text == "Scheduled Session":
+                user_text = "Sesi Terjadwal"
+                
+            if "Start Time:" in time_text:
+                time_text = time_text.replace("Start Time:", "Waktu Mulai:")
+                
+        self.status_lbl.setText(status_text)
+        self.user_lbl.setText(user_text)
+        self.time_lbl.setText(time_text)
+
+class SidebarQueueCard(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.current_lang = "en"
+        self.waiting_users = 2
+        self.est_wait = 20
+        
+        self.setStyleSheet("""
+            QWidget {
+                background-color: rgba(0, 219, 233, 0.08);
+                border: 1px solid rgba(0, 219, 233, 0.2);
+                border-radius: 12px;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(4)
+        
+        header = QHBoxLayout()
+        header.setSpacing(6)
+        header.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+        icon = QLabel("people")
+        icon.setFont(QFont("Material Symbols Outlined", 14))
+        icon.setStyleSheet("color: #00dbe9; background: transparent; border: none;")
+        
+        self.title_lbl = QLabel("QUEUE STATUS")
+        self.title_lbl.setFont(QFont("Space Grotesk", 9, QFont.Weight.Bold))
+        self.title_lbl.setStyleSheet("color: #00dbe9; background: transparent; border: none; letter-spacing: 1px;")
+        
+        header.addWidget(icon)
+        header.addWidget(self.title_lbl)
+        layout.addLayout(header)
+        
+        self.users_lbl = QLabel()
+        self.users_lbl.setFont(QFont("Inter", 9))
+        self.users_lbl.setStyleSheet("color: #ffffff; background: transparent; border: none;")
+        
+        self.wait_lbl = QLabel()
+        self.wait_lbl.setFont(QFont("Inter", 9))
+        self.wait_lbl.setStyleSheet("color: #b9cacb; background: transparent; border: none;")
+        
+        layout.addWidget(self.users_lbl)
+        layout.addWidget(self.wait_lbl)
+        
+        self.refresh_display()
+        
+    def set_queue_details(self, users, wait_minutes):
+        self.waiting_users = users
+        self.est_wait = wait_minutes
+        self.refresh_display()
+        
+    def update_language(self, lang):
+        self.current_lang = lang
+        if lang == "en":
+            self.title_lbl.setText("QUEUE STATUS")
+        else:
+            self.title_lbl.setText("STATUS ANTREAN")
+        self.refresh_display()
+        
+    def refresh_display(self):
+        if self.current_lang == "en":
+            self.users_lbl.setText(f"Waiting Users: {self.waiting_users}")
+            self.wait_lbl.setText(f"Estimated Wait: {self.est_wait} Minutes")
+        else:
+            self.users_lbl.setText(f"Pengguna Antre: {self.waiting_users}")
+            self.wait_lbl.setText(f"Estimasi Tunggu: {self.est_wait} Menit")
+
 class Sidebar(QWidget):
-    # Signal to notify when language changes ('en' or 'id')
     language_changed = pyqtSignal(str)
 
     def __init__(self):
@@ -15,18 +327,22 @@ class Sidebar(QWidget):
         self.status_state = "idle"
         self.setMinimumWidth(220)
         self.setMaximumWidth(280)
+        
+        self.queue_active = True
+        self.waiting_users = 2
+        self.est_wait_time = 20
 
         # Main Layout
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 48, 24, 48)
-        layout.setSpacing(32)
+        layout.setContentsMargins(20, 36, 20, 36)
+        layout.setSpacing(24)
 
         # 1. Brand Identity (Top)
         brand_container = QWidget()
         brand_container.setStyleSheet("background: transparent;")
         brand_layout = QVBoxLayout(brand_container)
         brand_layout.setContentsMargins(0, 0, 0, 0)
-        brand_layout.setSpacing(10)
+        brand_layout.setSpacing(8)
         brand_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         logo_lbl = QLabel()
@@ -50,7 +366,7 @@ class Sidebar(QWidget):
         status_container.setStyleSheet("background: transparent;")
         status_layout = QVBoxLayout(status_container)
         status_layout.setContentsMargins(0, 0, 0, 0)
-        status_layout.setSpacing(16)
+        status_layout.setSpacing(12)
         status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Status Box
@@ -97,6 +413,7 @@ class Sidebar(QWidget):
         shadow.setColor(QColor(78, 222, 163, 120))
         shadow.setOffset(0, 0)
         self.status_box.setGraphicsEffect(shadow)
+        self.shadow_effect = shadow
 
         self.pulse_anim = QPropertyAnimation(shadow, b"blurRadius")
         self.pulse_anim.setDuration(2000)
@@ -112,12 +429,12 @@ class Sidebar(QWidget):
         text_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.available_lbl = QLabel("AVAILABLE")
-        self.available_lbl.setFont(QFont("Space Grotesk", 20, QFont.Weight.Bold))
+        self.available_lbl.setFont(QFont("Space Grotesk", 18, QFont.Weight.Bold))
         self.available_lbl.setStyleSheet("color: #4edea3; background: transparent;")
         self.available_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.ready_lbl = QLabel("Ready to charge")
-        self.ready_lbl.setFont(QFont("Inter", 12))
+        self.ready_lbl.setFont(QFont("Inter", 11))
         self.ready_lbl.setStyleSheet("color: #b9cacb; background: transparent;")
         self.ready_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.ready_lbl.setWordWrap(True)
@@ -129,6 +446,23 @@ class Sidebar(QWidget):
         status_layout.addLayout(text_layout)
         layout.addWidget(status_container)
 
+        # 2.5 Dynamic Info Panels Container
+        self.info_container = QWidget()
+        self.info_container.setStyleSheet("background: transparent;")
+        info_layout = QVBoxLayout(self.info_container)
+        info_layout.setContentsMargins(0, 0, 0, 0)
+        info_layout.setSpacing(10)
+        
+        self.last_tx_card = SidebarLastTxCard()
+        self.reservation_card = SidebarReservationCard()
+        self.queue_card = SidebarQueueCard()
+        
+        info_layout.addWidget(self.last_tx_card)
+        info_layout.addWidget(self.reservation_card)
+        info_layout.addWidget(self.queue_card)
+        
+        layout.addWidget(self.info_container)
+
         # Stretch spacing
         layout.addStretch()
 
@@ -137,7 +471,7 @@ class Sidebar(QWidget):
         footer_container.setStyleSheet("background: transparent;")
         footer_layout = QVBoxLayout(footer_container)
         footer_layout.setContentsMargins(0, 0, 0, 0)
-        footer_layout.setSpacing(12)
+        footer_layout.setSpacing(10)
 
         # Stylesheet for buttons
         btn_style = """
@@ -145,7 +479,7 @@ class Sidebar(QWidget):
                 background-color: rgba(45, 52, 73, 0.2);
                 border: 1px solid rgba(59, 73, 75, 0.2);
                 border-radius: 12px;
-                min-height: 48px;
+                min-height: 40px;
             }
             QPushButton:hover {
                 background-color: rgba(45, 52, 73, 0.5);
@@ -160,16 +494,16 @@ class Sidebar(QWidget):
         self.lang_btn.setStyleSheet(btn_style)
         self.lang_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         lang_layout = QHBoxLayout(self.lang_btn)
-        lang_layout.setContentsMargins(16, 0, 16, 0)
-        lang_layout.setSpacing(12)
+        lang_layout.setContentsMargins(12, 0, 12, 0)
+        lang_layout.setSpacing(8)
         lang_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         lang_icon = QLabel("language")
-        lang_icon.setFont(QFont("Material Symbols Outlined", 20))
+        lang_icon.setFont(QFont("Material Symbols Outlined", 18))
         lang_icon.setStyleSheet("color: #b9cacb; background: transparent; border: none;")
         
         self.lang_txt = QLabel("English")
-        self.lang_txt.setFont(QFont("Space Grotesk", 14, QFont.Weight.Bold))
+        self.lang_txt.setFont(QFont("Space Grotesk", 12, QFont.Weight.Bold))
         self.lang_txt.setStyleSheet("color: #dae2fd; background: transparent; border: none;")
         
         lang_layout.addWidget(lang_icon)
@@ -179,16 +513,16 @@ class Sidebar(QWidget):
         self.settings_btn.setStyleSheet(btn_style)
         self.settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         settings_layout = QHBoxLayout(self.settings_btn)
-        settings_layout.setContentsMargins(16, 0, 16, 0)
-        settings_layout.setSpacing(12)
+        settings_layout.setContentsMargins(12, 0, 12, 0)
+        settings_layout.setSpacing(8)
         settings_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         settings_icon = QLabel("settings")
-        settings_icon.setFont(QFont("Material Symbols Outlined", 20))
+        settings_icon.setFont(QFont("Material Symbols Outlined", 18))
         settings_icon.setStyleSheet("color: #b9cacb; background: transparent; border: none;")
         
         self.settings_txt = QLabel("Settings")
-        self.settings_txt.setFont(QFont("Space Grotesk", 14, QFont.Weight.Bold))
+        self.settings_txt.setFont(QFont("Space Grotesk", 12, QFont.Weight.Bold))
         self.settings_txt.setStyleSheet("color: #dae2fd; background: transparent; border: none;")
         
         settings_layout.addWidget(settings_icon)
@@ -198,8 +532,8 @@ class Sidebar(QWidget):
         footer_layout.addWidget(self.settings_btn)
         layout.addWidget(footer_container)
 
-        # Connect language button click to toggle method
         self.lang_btn.clicked.connect(self.toggle_language)
+        self.update_sidebar_panels()
 
     def toggle_language(self):
         if self.current_lang == "en":
@@ -213,86 +547,135 @@ class Sidebar(QWidget):
         if lang == "en":
             self.lang_txt.setText("English")
             self.settings_txt.setText("Settings")
-            self.available_lbl.setText("AVAILABLE")
-            self.ready_lbl.setText("Ready to charge")
         else:  # id
             self.lang_txt.setText("Indonesia")
             self.settings_txt.setText("Pengaturan")
-            self.available_lbl.setText("TERSEDIA")
-            self.ready_lbl.setText("Siap untuk mengisi daya")
+            
+        self.last_tx_card.update_language(lang)
+        self.reservation_card.update_language(lang)
+        self.queue_card.update_language(lang)
         self.refresh_status_text()
+        self.update_sidebar_panels()
 
     def set_status_state(self, state):
         self.status_state = state
         self.refresh_status_text()
+        self.update_sidebar_panels()
+
+    def update_queue_info(self, active, users=2, wait_time=20):
+        self.queue_active = active
+        self.waiting_users = users
+        self.est_wait_time = wait_time
+        self.queue_card.set_queue_details(users, wait_time)
+        self.update_sidebar_panels()
+
+    def update_last_transaction(self, date, time, soc, energy, duration, cost):
+        self.last_tx_card.update_session(date, time, soc, energy, duration, cost)
+
+    def update_sidebar_panels(self):
+        # 1. Last transaction card
+        if self.status_state in ["idle", "available"]:
+            self.last_tx_card.setVisible(True)
+        else:
+            self.last_tx_card.setVisible(False)
+            
+        # 2. Reservation card
+        if self.status_state in ["reserved", "scheduled"]:
+            self.reservation_card.setVisible(True)
+        else:
+            self.reservation_card.setVisible(False)
+            
+        # 3. Queue card
+        if self.queue_active:
+            self.queue_card.setVisible(True)
+        else:
+            self.queue_card.setVisible(False)
 
     def refresh_status_text(self):
-        if self.status_state == "idle":
-            self.status_sub_txt.setVisible(False)
-            self.available_lbl.setVisible(True)
-            self.ready_lbl.setVisible(True)
-            self.charger_icon.setText("ev_charger")
-            self.status_txt.setText("Status")
-            self.status_box.setStyleSheet("""
-                QWidget {
-                    background-color: #00a572;
-                    border: 2px solid rgba(78, 222, 163, 0.5);
-                    border-radius: 16px;
-                }
-            """)
-        elif self.status_state == "preparing":
-            self.status_sub_txt.setVisible(True)
-            self.status_sub_txt.setText("PREPARING" if self.current_lang == "en" else "MEMPERSIAPKAN")
-            self.available_lbl.setVisible(False)
-            self.ready_lbl.setVisible(False)
-            self.charger_icon.setText("ev_charger")
-            self.status_txt.setText("Status")
-            self.status_box.setStyleSheet("""
-                QWidget {
-                    background-color: #00a572;
-                    border: 2px solid rgba(78, 222, 163, 0.5);
-                    border-radius: 16px;
-                }
-            """)
-        elif self.status_state == "transaction":
-            self.status_sub_txt.setVisible(False)
-            self.available_lbl.setVisible(False)
-            self.ready_lbl.setVisible(False)
-            self.charger_icon.setText("payments")
-            self.status_txt.setText("TRANSACTION" if self.current_lang == "en" else "TRANSAKSI")
-            self.status_box.setStyleSheet("""
-                QWidget {
-                    background-color: #00a572;
-                    border: 2px solid rgba(78, 222, 163, 0.5);
-                    border-radius: 16px;
-                }
-            """)
-        elif self.status_state == "charging":
-            self.status_sub_txt.setVisible(True)
-            self.status_sub_txt.setText("CHARGING" if self.current_lang == "en" else "PENGISIAN")
-            self.charger_icon.setText("ev_charger")
-            self.status_txt.setText("Status")
-            self.status_box.setStyleSheet("""
-                QWidget {
-                    background-color: #00a572;
-                    border: 2px solid rgba(78, 222, 163, 0.5);
-                    border-radius: 16px;
-                }
-            """)
-        elif self.status_state == "finishing":
-            self.status_sub_txt.setVisible(True)
-            self.status_sub_txt.setText("Finishing" if self.current_lang == "en" else "Selesai")
-            self.available_lbl.setVisible(False)
-            self.ready_lbl.setVisible(False)
-            self.charger_icon.setText("ev_charger")
-            self.status_txt.setText("Status")
-            self.status_box.setStyleSheet("""
-                QWidget {
-                    background-color: #00a572;
-                    border: 2px solid rgba(78, 222, 163, 0.5);
-                    border-radius: 16px;
-                }
-            """)
+        # Setup specific theme properties for each status
+        state_config = {
+            "idle": {
+                "bg": "#00a572", "border": "rgba(78, 222, 163, 0.5)", "text_color": "#00311f", 
+                "glow": QColor(78, 222, 163, 120), "icon": "ev_charger", "sub_visible": False,
+                "lbl_main_en": "AVAILABLE", "lbl_main_id": "TERSEDIA", "lbl_main_color": "#4edea3",
+                "lbl_desc_en": "Ready to charge", "lbl_desc_id": "Siap untuk mengisi daya"
+            },
+            "available": {
+                "bg": "#00a572", "border": "rgba(78, 222, 163, 0.5)", "text_color": "#00311f", 
+                "glow": QColor(78, 222, 163, 120), "icon": "ev_charger", "sub_visible": False,
+                "lbl_main_en": "AVAILABLE", "lbl_main_id": "TERSEDIA", "lbl_main_color": "#4edea3",
+                "lbl_desc_en": "Ready to charge", "lbl_desc_id": "Siap untuk mengisi daya"
+            },
+            "preparing": {
+                "bg": "#008080", "border": "rgba(0, 240, 255, 0.5)", "text_color": "#002a2b", 
+                "glow": QColor(0, 240, 255, 120), "icon": "power", "sub_visible": False,
+                "lbl_main_en": "PREPARING", "lbl_main_id": "MENYIAPKAN", "lbl_main_color": "#00f0ff",
+                "lbl_desc_en": "Preparing connector...", "lbl_desc_id": "Menyiapkan konektor..."
+            },
+            "charging": {
+                "bg": "#0a5c8c", "border": "rgba(0, 219, 233, 0.5)", "text_color": "#ffffff", 
+                "glow": QColor(0, 219, 233, 120), "icon": "bolt", "sub_visible": False,
+                "lbl_main_en": "CHARGING", "lbl_main_id": "PENGISIAN", "lbl_main_color": "#00dbe9",
+                "lbl_desc_en": "Charging vehicle...", "lbl_desc_id": "Mengisi daya kendaraan..."
+            },
+            "finishing": {
+                "bg": "#5c2d91", "border": "rgba(181, 124, 255, 0.5)", "text_color": "#ffffff", 
+                "glow": QColor(181, 124, 255, 120), "icon": "done_all", "sub_visible": False,
+                "lbl_main_en": "FINISHING", "lbl_main_id": "SELESAI", "lbl_main_color": "#b57cff",
+                "lbl_desc_en": "Session completed", "lbl_desc_id": "Sesi selesai"
+            },
+            "reserved": {
+                "bg": "#b25900", "border": "rgba(255, 170, 68, 0.5)", "text_color": "#3a1c00", 
+                "glow": QColor(255, 170, 68, 120), "icon": "bookmark", "sub_visible": False,
+                "lbl_main_en": "RESERVED", "lbl_main_id": "DIPESAN", "lbl_main_color": "#ffaa44",
+                "lbl_desc_en": "Reserved for user", "lbl_desc_id": "Dipesan oleh pengguna"
+            },
+            "scheduled": {
+                "bg": "#3a3f58", "border": "rgba(143, 158, 255, 0.5)", "text_color": "#ffffff", 
+                "glow": QColor(143, 158, 255, 120), "icon": "schedule", "sub_visible": False,
+                "lbl_main_en": "SCHEDULED", "lbl_main_id": "TERJADWAL", "lbl_main_color": "#8f9eff",
+                "lbl_desc_en": "Scheduled session", "lbl_desc_id": "Sesi terjadwal"
+            },
+            "faulted": {
+                "bg": "#a61c1c", "border": "rgba(255, 123, 123, 0.5)", "text_color": "#ffffff", 
+                "glow": QColor(255, 123, 123, 120), "icon": "warning", "sub_visible": False,
+                "lbl_main_en": "FAULTED", "lbl_main_id": "GANGGUAN", "lbl_main_color": "#ff7b7b",
+                "lbl_desc_en": "System error detected", "lbl_desc_id": "Gangguan sistem terdeteksi"
+            },
+            "transaction": {
+                "bg": "#008080", "border": "rgba(0, 240, 255, 0.5)", "text_color": "#002a2b", 
+                "glow": QColor(0, 240, 255, 120), "icon": "payments", "sub_visible": False,
+                "lbl_main_en": "TRANSACTION", "lbl_main_id": "TRANSAKSI", "lbl_main_color": "#00f0ff",
+                "lbl_desc_en": "Processing payment...", "lbl_desc_id": "Memproses pembayaran..."
+            }
+        }
+        
+        cfg = state_config.get(self.status_state, state_config["idle"])
+        
+        # Apply Box Styling
+        self.status_box.setStyleSheet(f"""
+            QWidget {{
+                background-color: {cfg["bg"]};
+                border: 2px solid {cfg["border"]};
+                border-radius: 16px;
+            }}
+        """)
+        
+        self.charger_icon.setText(cfg["icon"])
+        self.charger_icon.setStyleSheet(f"color: {cfg['text_color']}; background: transparent; border: none;")
+        self.status_txt.setStyleSheet(f"color: {cfg['text_color']}; background: transparent; border: none;")
+        
+        # Apply Text Below Box
+        main_text = cfg["lbl_main_en"] if self.current_lang == "en" else cfg["lbl_main_id"]
+        desc_text = cfg["lbl_desc_en"] if self.current_lang == "en" else cfg["lbl_desc_id"]
+        
+        self.available_lbl.setText(main_text)
+        self.available_lbl.setStyleSheet(f"color: {cfg['lbl_main_color']}; background: transparent;")
+        
+        self.ready_lbl.setText(desc_text)
+        
+        # Update Shadow Glow
+        self.shadow_effect.setColor(cfg["glow"])
 
     def paintEvent(self, event):
         painter = QPainter(self)
