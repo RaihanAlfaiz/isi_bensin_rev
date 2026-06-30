@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QGraphicsDropShadowEffect
-from PyQt6.QtCore import Qt, QPropertyAnimation, QRect, QRectF, pyqtSignal
-from PyQt6.QtGui import QPainter, QColor, QFont, QFontDatabase, QPixmap
+from PyQt6.QtCore import Qt, QPropertyAnimation, QRect, QRectF, pyqtSignal, QUrl
+from PyQt6.QtGui import QPainter, QColor, QFont, QFontDatabase, QPixmap, QBrush, QPen, QPainterPath, QImage
+from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput, QVideoSink
 from config import BASE_DIR
 
 class SidebarLastTxCard(QWidget):
@@ -316,6 +317,157 @@ class SidebarQueueCard(QWidget):
             self.users_lbl.setText(f"Pengguna Antre: {self.waiting_users}")
             self.wait_lbl.setText(f"Estimasi Tunggu: {self.est_wait} Menit")
 
+class SidebarStatusBox(QWidget):
+    frame_received = pyqtSignal(QImage)
+ 
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(140, 140)
+        self.current_frame_image = None
+        self.current_frame_pixmap = None
+        self.is_active = False
+        self.target_w = 140
+        self.target_h = 140
+        self.bg_color = QColor("#00a572")
+        self.border_color = QColor("rgba(78, 222, 163, 0.5)")
+        
+        self.media_player = QMediaPlayer()
+        self.audio_output = QAudioOutput()
+        self.audio_output.setVolume(0)
+        self.media_player.setAudioOutput(self.audio_output)
+        
+        self.video_sink = QVideoSink()
+        self.media_player.setVideoOutput(self.video_sink)
+        self.video_sink.videoFrameChanged.connect(self.on_video_frame_changed)
+        self.frame_received.connect(self.on_safe_frame_received)
+        
+        self.current_video_file = None
+        
+        # Child widgets
+        box_layout = QVBoxLayout(self)
+        box_layout.setContentsMargins(0, 0, 0, 0)
+        box_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        box_layout.setSpacing(8)
+ 
+        self.charger_icon = QLabel("ev_charger")
+        self.charger_icon.setFont(QFont("Material Symbols Outlined", 48))
+        self.charger_icon.setStyleSheet("color: #00311f; background: transparent; border: none;")
+        self.charger_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+ 
+        self.status_txt = QLabel("Status")
+        self.status_txt.setFont(QFont("Space Grotesk", 16, QFont.Weight.Bold))
+        self.status_txt.setStyleSheet("color: #00311f; background: transparent; border: none;")
+        self.status_txt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+ 
+        box_layout.addWidget(self.charger_icon)
+        box_layout.addWidget(self.status_txt)
+ 
+        self.status_sub_txt = QLabel("PREPARING")
+        sub_font = QFont("Space Grotesk", 10, QFont.Weight.Bold)
+        sub_font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 115)
+        self.status_sub_txt.setFont(sub_font)
+        self.status_sub_txt.setStyleSheet("color: rgba(0, 49, 31, 204); background: transparent; border: none;")
+        self.status_sub_txt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_sub_txt.setVisible(False)
+        box_layout.addWidget(self.status_sub_txt)
+ 
+    def on_video_frame_changed(self, frame):
+        if not self.is_active or not frame.isValid():
+            return
+        img = frame.toImage()
+        if img.isNull():
+            return
+        w, h = self.target_w, self.target_h
+        if w > 0 and h > 0:
+            scaled_img = img.scaled(
+                w, h,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            self.frame_received.emit(scaled_img)
+ 
+    def on_safe_frame_received(self, img):
+        self.current_frame_image = img
+        self.current_frame_pixmap = QPixmap.fromImage(img)
+        self.update()
+        
+    def set_style(self, bg_color_str, border_color_str):
+        self.bg_color = QColor(bg_color_str)
+        self.border_color = QColor(border_color_str)
+        self.update()
+        
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.is_active = True
+        self.target_w = self.width()
+        self.target_h = self.height()
+        if self.current_video_file:
+            self.media_player.play()
+        
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.is_active = False
+        self.media_player.stop()
+        self.current_frame_image = None
+        self.current_frame_pixmap = None
+        
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        size = event.size()
+        self.target_w = size.width()
+        self.target_h = size.height()
+        
+    def set_video(self, video_filename):
+        if video_filename:
+            video_path = BASE_DIR / "resources" / "video" / video_filename
+            if video_path.exists():
+                url = QUrl.fromLocalFile(str(video_path))
+                if self.current_video_file != video_filename:
+                    self.current_video_file = video_filename
+                    self.media_player.stop()
+                    self.media_player.setSource(url)
+                    self.media_player.setLoops(QMediaPlayer.Loops.Infinite)
+                    if self.is_active:
+                        self.media_player.play()
+                self.charger_icon.setVisible(False)
+                self.status_txt.setVisible(False)
+                self.status_sub_txt.setVisible(False)
+                return
+        
+        self.media_player.stop()
+        self.current_video_file = None
+        self.current_frame_image = None
+        self.current_frame_pixmap = None
+        self.charger_icon.setVisible(True)
+        self.status_txt.setVisible(True)
+        self.update()
+ 
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        rect = self.rect()
+        
+        # Background path
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(rect), 16.0, 16.0)
+        
+        # Fill background
+        painter.fillPath(path, QBrush(self.bg_color))
+        
+        # If video frame exists, draw it inside the border (with clipping)
+        if self.current_frame_pixmap is not None and not self.current_frame_pixmap.isNull():
+            painter.save()
+            painter.setClipPath(path)
+            painter.drawPixmap(rect, self.current_frame_pixmap)
+            painter.restore()
+            
+        # Draw border
+        painter.setPen(QPen(self.border_color, 2))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(QRectF(rect).adjusted(1, 1, -1, -1), 16.0, 16.0)
+
+
 class Sidebar(QWidget):
     language_changed = pyqtSignal(str)
 
@@ -370,42 +522,10 @@ class Sidebar(QWidget):
         status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Status Box
-        self.status_box = QWidget()
-        self.status_box.setFixedSize(140, 140)
-        self.status_box.setStyleSheet("""
-            QWidget {
-                background-color: #00a572;
-                border: 2px solid rgba(78, 222, 163, 0.5);
-                border-radius: 16px;
-            }
-        """)
-
-        box_layout = QVBoxLayout(self.status_box)
-        box_layout.setContentsMargins(0, 0, 0, 0)
-        box_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        box_layout.setSpacing(8)
-
-        self.charger_icon = QLabel("ev_charger")
-        self.charger_icon.setFont(QFont("Material Symbols Outlined", 48))
-        self.charger_icon.setStyleSheet("color: #00311f; background: transparent; border: none;")
-        self.charger_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self.status_txt = QLabel("Status")
-        self.status_txt.setFont(QFont("Space Grotesk", 16, QFont.Weight.Bold))
-        self.status_txt.setStyleSheet("color: #00311f; background: transparent; border: none;")
-        self.status_txt.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        box_layout.addWidget(self.charger_icon)
-        box_layout.addWidget(self.status_txt)
-
-        self.status_sub_txt = QLabel("PREPARING")
-        sub_font = QFont("Space Grotesk", 10, QFont.Weight.Bold)
-        sub_font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 115)
-        self.status_sub_txt.setFont(sub_font)
-        self.status_sub_txt.setStyleSheet("color: rgba(0, 49, 31, 204); background: transparent; border: none;")
-        self.status_sub_txt.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_sub_txt.setVisible(False)
-        box_layout.addWidget(self.status_sub_txt)
+        self.status_box = SidebarStatusBox()
+        self.charger_icon = self.status_box.charger_icon
+        self.status_txt = self.status_box.status_txt
+        self.status_sub_txt = self.status_box.status_sub_txt
 
         # Status pulse glow animation
         shadow = QGraphicsDropShadowEffect(self.status_box)
@@ -415,13 +535,8 @@ class Sidebar(QWidget):
         self.status_box.setGraphicsEffect(shadow)
         self.shadow_effect = shadow
 
-        self.pulse_anim = QPropertyAnimation(shadow, b"blurRadius")
-        self.pulse_anim.setDuration(2000)
-        self.pulse_anim.setStartValue(10)
-        self.pulse_anim.setKeyValueAt(0.5, 25)
-        self.pulse_anim.setEndValue(10)
-        self.pulse_anim.setLoopCount(-1)
-        self.pulse_anim.start()
+        # Static shadow glow to prevent layout recalculation jitter
+        shadow.setBlurRadius(15)
 
         # Text below box
         text_layout = QVBoxLayout()
@@ -533,6 +648,7 @@ class Sidebar(QWidget):
         layout.addWidget(footer_container)
 
         self.lang_btn.clicked.connect(self.toggle_language)
+        self.refresh_status_text()
         self.update_sidebar_panels()
 
     def toggle_language(self):
@@ -598,31 +714,36 @@ class Sidebar(QWidget):
                 "bg": "#00a572", "border": "rgba(78, 222, 163, 0.5)", "text_color": "#00311f", 
                 "glow": QColor(78, 222, 163, 120), "icon": "ev_charger", "sub_visible": False,
                 "lbl_main_en": "AVAILABLE", "lbl_main_id": "TERSEDIA", "lbl_main_color": "#4edea3",
-                "lbl_desc_en": "Ready to charge", "lbl_desc_id": "Siap untuk mengisi daya"
+                "lbl_desc_en": "Ready to charge", "lbl_desc_id": "Siap untuk mengisi daya",
+                "video_file": "Status.mp4"
             },
             "available": {
                 "bg": "#00a572", "border": "rgba(78, 222, 163, 0.5)", "text_color": "#00311f", 
                 "glow": QColor(78, 222, 163, 120), "icon": "ev_charger", "sub_visible": False,
                 "lbl_main_en": "AVAILABLE", "lbl_main_id": "TERSEDIA", "lbl_main_color": "#4edea3",
-                "lbl_desc_en": "Ready to charge", "lbl_desc_id": "Siap untuk mengisi daya"
+                "lbl_desc_en": "Ready to charge", "lbl_desc_id": "Siap untuk mengisi daya",
+                "video_file": "Status.mp4"
             },
             "preparing": {
                 "bg": "#008080", "border": "rgba(0, 240, 255, 0.5)", "text_color": "#002a2b", 
                 "glow": QColor(0, 240, 255, 120), "icon": "power", "sub_visible": False,
                 "lbl_main_en": "PREPARING", "lbl_main_id": "MENYIAPKAN", "lbl_main_color": "#00f0ff",
-                "lbl_desc_en": "Preparing connector...", "lbl_desc_id": "Menyiapkan konektor..."
+                "lbl_desc_en": "Preparing connector...", "lbl_desc_id": "Menyiapkan konektor...",
+                "video_file": "Status Oren 1.mp4"
             },
             "charging": {
                 "bg": "#0a5c8c", "border": "rgba(0, 219, 233, 0.5)", "text_color": "#ffffff", 
                 "glow": QColor(0, 219, 233, 120), "icon": "bolt", "sub_visible": False,
                 "lbl_main_en": "CHARGING", "lbl_main_id": "PENGISIAN", "lbl_main_color": "#00dbe9",
-                "lbl_desc_en": "Charging vehicle...", "lbl_desc_id": "Mengisi daya kendaraan..."
+                "lbl_desc_en": "Charging vehicle...", "lbl_desc_id": "Mengisi daya kendaraan...",
+                "video_file": "Charging 1.mp4"
             },
             "finishing": {
                 "bg": "#5c2d91", "border": "rgba(181, 124, 255, 0.5)", "text_color": "#ffffff", 
                 "glow": QColor(181, 124, 255, 120), "icon": "done_all", "sub_visible": False,
                 "lbl_main_en": "FINISHING", "lbl_main_id": "SELESAI", "lbl_main_color": "#b57cff",
-                "lbl_desc_en": "Session completed", "lbl_desc_id": "Sesi selesai"
+                "lbl_desc_en": "Session completed", "lbl_desc_id": "Sesi selesai",
+                "video_file": "Charging State(1).mp4"
             },
             "reserved": {
                 "bg": "#b25900", "border": "rgba(255, 170, 68, 0.5)", "text_color": "#3a1c00", 
@@ -646,20 +767,16 @@ class Sidebar(QWidget):
                 "bg": "#008080", "border": "rgba(0, 240, 255, 0.5)", "text_color": "#002a2b", 
                 "glow": QColor(0, 240, 255, 120), "icon": "payments", "sub_visible": False,
                 "lbl_main_en": "TRANSACTION", "lbl_main_id": "TRANSAKSI", "lbl_main_color": "#00f0ff",
-                "lbl_desc_en": "Processing payment...", "lbl_desc_id": "Memproses pembayaran..."
+                "lbl_desc_en": "Processing payment...", "lbl_desc_id": "Memproses pembayaran...",
+                "video_file": "Transaksi 1.mp4"
             }
         }
         
         cfg = state_config.get(self.status_state, state_config["idle"])
         
         # Apply Box Styling
-        self.status_box.setStyleSheet(f"""
-            QWidget {{
-                background-color: {cfg["bg"]};
-                border: 2px solid {cfg["border"]};
-                border-radius: 16px;
-            }}
-        """)
+        self.status_box.set_style(cfg["bg"], cfg["border"])
+        self.status_box.set_video(cfg.get("video_file"))
         
         self.charger_icon.setText(cfg["icon"])
         self.charger_icon.setStyleSheet(f"color: {cfg['text_color']}; background: transparent; border: none;")

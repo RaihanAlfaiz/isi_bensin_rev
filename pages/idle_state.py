@@ -123,7 +123,7 @@ class BouncingTooltip(QWidget):
 class HeroSection(QWidget):
     def __init__(self):
         super().__init__()
-        self.pixmap = QPixmap(str(BASE_DIR / "resources" / "images" / "ev_car.jpg"))
+        self.pixmap = QPixmap(str(BASE_DIR / "resources" / "images" / "vector background-01.png"))
         
         # Layout inside Hero Card
         layout = QVBoxLayout(self)
@@ -178,44 +178,9 @@ class HeroSection(QWidget):
         
         layout.addStretch()
         
-        # Bottom Column: Pill Badge, Title, Description
+        # Bottom Column: Title, Description
         bottom_col = QVBoxLayout()
         bottom_col.setSpacing(14)
-        
-        # Pill Badge (Global Network)
-        self.pill = QWidget()
-        self.pill.setStyleSheet("""
-            QWidget {
-                background-color: rgba(78, 222, 163, 0.15);
-                border: 1px solid rgba(78, 222, 163, 0.3);
-                border-radius: 14px;
-            }
-        """)
-        self.pill.setFixedHeight(28)
-        
-        pill_layout = QHBoxLayout(self.pill)
-        pill_layout.setContentsMargins(12, 0, 12, 0)
-        pill_layout.setSpacing(8)
-        pill_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        # Pulse Dot inside Pill
-        self.dot = QLabel("●")
-        self.dot.setFont(QFont("Inter", 8))
-        self.dot.setStyleSheet("color: #4edea3; background: transparent; border: none;")
-        
-        self.pill_txt = QLabel("GLOBAL NETWORK")
-        self.pill_txt.setFont(QFont("Space Grotesk", 11, QFont.Weight.Bold))
-        self.pill_txt.setStyleSheet("color: #4edea3; background: transparent; border: none; letter-spacing: 1.5px;")
-        
-        pill_layout.addWidget(self.dot)
-        pill_layout.addWidget(self.pill_txt)
-        
-        # Pulse dot animation
-        self.dot_opacity = 1.0
-        self.dot_dir = -1
-        self.dot_timer = QTimer(self)
-        self.dot_timer.timeout.connect(self.pulse_dot)
-        self.dot_timer.start(100)
         
         # Title Label
         self.title_lbl = QLabel("Powering the\nFuture of Mobility")
@@ -229,32 +194,17 @@ class HeroSection(QWidget):
         self.desc_lbl.setStyleSheet("color: #b9cacb; background: transparent;")
         self.desc_lbl.setWordWrap(True)
         
-        bottom_col.addWidget(self.pill, 0, Qt.AlignmentFlag.AlignLeft)
         bottom_col.addWidget(self.title_lbl)
         bottom_col.addWidget(self.desc_lbl)
         
         layout.addLayout(bottom_col)
 
-    def pulse_dot(self):
-        self.dot_opacity += self.dot_dir * 0.1
-        if self.dot_opacity <= 0.3:
-            self.dot_opacity = 0.3
-            self.dot_dir = 1
-        elif self.dot_opacity >= 1.0:
-            self.dot_opacity = 1.0
-            self.dot_dir = -1
-        # Set stylesheet with updated alpha
-        alpha = int(self.dot_opacity * 255)
-        self.dot.setStyleSheet(f"color: rgba(78, 222, 163, {alpha}); background: transparent; border: none;")
-
     def update_language(self, lang):
         if lang == "en":
-            self.pill_txt.setText("GLOBAL NETWORK")
             self.btn_txt.setText("START CHARGING")
             self.title_lbl.setText("Powering the\nFuture of Mobility")
             self.desc_lbl.setText("Experience 350kW ultra-fast charging. Seamless, sustainable, and smarter than ever before.")
         else: # id
-            self.pill_txt.setText("JARINGAN GLOBAL")
             self.btn_txt.setText("MULAI PENGISIAN")
             self.title_lbl.setText("Mendorong Masa\nDepan Mobilitas")
             self.desc_lbl.setText("Rasakan pengisian daya ultra-cepat 350kW. Mulus, berkelanjutan, dan lebih pintar dari sebelumnya.")

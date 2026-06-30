@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGraphicsDropShadowEffect, QSizePolicy
-from PyQt6.QtCore import Qt, QTimer, QRectF, pyqtSignal, QPropertyAnimation, QPointF
-from PyQt6.QtGui import QPainter, QColor, QFont, QPen, QBrush, QPixmap, QPainterPath
+from PyQt6.QtCore import Qt, QTimer, QRectF, pyqtSignal, QPropertyAnimation, QPointF, QUrl
+from PyQt6.QtGui import QPainter, QColor, QFont, QPen, QBrush, QPixmap, QPainterPath, QImage
+from PyQt6.QtMultimedia import QMediaPlayer, QVideoSink, QAudioOutput
 from config import BASE_DIR
 import random
 import math
@@ -43,65 +44,179 @@ class WaveformWidget(QWidget):
 
 
 class RFIDCardSensor(QWidget):
+    frame_received = pyqtSignal(QImage)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(200, 200)
-        self.pulse_radius = 20.0
-        self.angle = 0.0
+        self.current_frame_image = None
+        self.current_frame_pixmap = None
+        self.is_active = False
+        self.target_w = 0
+        self.target_h = 0
         
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.animate)
-        self.timer.start(30)
+        self.media_player = QMediaPlayer()
+        self.audio_output = QAudioOutput()
+        self.audio_output.setVolume(0)
+        self.media_player.setAudioOutput(self.audio_output)
         
-    def animate(self):
-        self.pulse_radius += 0.8
-        if self.pulse_radius > 90.0:
-            self.pulse_radius = 20.0
-            
-        self.angle += 2.0
-        if self.angle >= 360.0:
-            self.angle = 0.0
+        self.video_sink = QVideoSink()
+        self.media_player.setVideoOutput(self.video_sink)
+        self.video_sink.videoFrameChanged.connect(self.on_video_frame_changed)
+        self.frame_received.connect(self.on_safe_frame_received)
+        
+        video_path = BASE_DIR / "resources" / "video" / "Kartu Tangan 1.mp4"
+        self.media_player.setSource(QUrl.fromLocalFile(str(video_path)))
+        self.media_player.setLoops(QMediaPlayer.Loops.Infinite)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.is_active = True
+        self.target_w = self.width()
+        self.target_h = self.height()
+        self.media_player.play()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.is_active = False
+        self.media_player.stop()
+        self.current_frame_image = None
+        self.current_frame_pixmap = None
+
+    def on_video_frame_changed(self, frame):
+        if not self.is_active or not frame.isValid():
+            return
+        img = frame.toImage()
+        if img.isNull():
+            return
+        w, h = self.target_w, self.target_h
+        if w > 0 and h > 0:
+            scaled_img = img.scaled(
+                w, h,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            self.frame_received.emit(scaled_img)
+
+    def on_safe_frame_received(self, image):
+        self.current_frame_image = image
+        self.current_frame_pixmap = QPixmap.fromImage(image)
         self.update()
-        
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        size = event.size()
+        self.target_w = size.width()
+        self.target_h = size.height()
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
-        cx = self.width() / 2.0
-        cy = self.height() / 2.0
+        rect = self.rect()
         
-        # Draw pulsing concentric rings
-        # Ring 1 (outer fade)
-        alpha1 = int((1.0 - (self.pulse_radius / 90.0)) * 100)
-        painter.setPen(QPen(QColor(78, 222, 163, alpha1), 2.0))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawEllipse(QPointF(cx, cy), self.pulse_radius, self.pulse_radius)
-        
-        # Ring 2 (inner constant pulse)
-        pulse2 = self.pulse_radius - 25.0
-        if pulse2 > 0:
-            alpha2 = int((1.0 - (pulse2 / 90.0)) * 150)
-            painter.setPen(QPen(QColor(78, 222, 163, alpha2), 1.5))
-            painter.drawEllipse(QPointF(cx, cy), pulse2, pulse2)
+        if self.current_frame_pixmap and not self.current_frame_pixmap.isNull():
+            tx = (rect.width() - self.current_frame_pixmap.width()) // 2
+            ty = (rect.height() - self.current_frame_pixmap.height()) // 2
+            painter.drawPixmap(tx, ty, self.current_frame_pixmap)
+        else:
+            cx = self.width() / 2.0
+            cy = self.height() / 2.0
             
-        # Draw central card icon container
-        card_w = 120.0
-        card_h = 120.0
-        card_rect = QRectF(cx - card_w/2.0, cy - card_h/2.0, card_w, card_h)
+            card_w = 120.0
+            card_h = 120.0
+            card_rect = QRectF(cx - card_w/2.0, cy - card_h/2.0, card_w, card_h)
+            
+            painter.setPen(QPen(QColor(78, 222, 163, 60), 1.5))
+            painter.setBrush(QBrush(QColor(78, 222, 163, 20)))
+            painter.drawRoundedRect(card_rect, 16.0, 16.0)
+            
+            painter.setFont(QFont("Material Symbols Outlined", 64))
+            painter.setPen(QColor(78, 222, 163))
+            icon_text = "contactless"
+            metrics = painter.fontMetrics()
+            tx = cx - metrics.horizontalAdvance(icon_text) / 2.0
+            ty = cy + (metrics.ascent() - metrics.descent()) / 2.0 - 5
+            painter.drawText(int(tx), int(ty), icon_text)
+
+
+class SuccessVideoWidget(QWidget):
+    frame_received = pyqtSignal(QImage)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(180, 180)
+        self.current_frame_image = None
+        self.current_frame_pixmap = None
+        self.is_active = False
+        self.target_w = 180
+        self.target_h = 180
         
-        # Semi-transparent background
-        painter.setPen(QPen(QColor(78, 222, 163, 60), 1.5))
-        painter.setBrush(QBrush(QColor(78, 222, 163, 20)))
-        painter.drawRoundedRect(card_rect, 16.0, 16.0)
+        self.media_player = QMediaPlayer()
+        self.audio_output = QAudioOutput()
+        self.audio_output.setVolume(0)
+        self.media_player.setAudioOutput(self.audio_output)
         
-        # Draw contactless icon text
-        painter.setFont(QFont("Material Symbols Outlined", 64))
-        painter.setPen(QColor(78, 222, 163))
-        icon_text = "contactless"
-        metrics = painter.fontMetrics()
-        tx = cx - metrics.horizontalAdvance(icon_text) / 2.0
-        ty = cy + (metrics.ascent() - metrics.descent()) / 2.0 - 5
-        painter.drawText(int(tx), int(ty), icon_text)
+        self.video_sink = QVideoSink()
+        self.media_player.setVideoOutput(self.video_sink)
+        self.video_sink.videoFrameChanged.connect(self.on_video_frame_changed)
+        self.frame_received.connect(self.on_safe_frame_received)
+        
+        video_path = BASE_DIR / "resources" / "video" / "Tangan Hp 1.mp4"
+        self.media_player.setSource(QUrl.fromLocalFile(str(video_path)))
+        self.media_player.setLoops(QMediaPlayer.Loops.Infinite)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.is_active = True
+        self.target_w = self.width()
+        self.target_h = self.height()
+        self.media_player.play()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.is_active = False
+        self.media_player.stop()
+        self.current_frame_image = None
+        self.current_frame_pixmap = None
+
+    def on_video_frame_changed(self, frame):
+        if not self.is_active or not frame.isValid():
+            return
+        img = frame.toImage()
+        if img.isNull():
+            return
+        w, h = self.target_w, self.target_h
+        if w > 0 and h > 0:
+            scaled_img = img.scaled(
+                w, h,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            self.frame_received.emit(scaled_img)
+
+    def on_safe_frame_received(self, image):
+        self.current_frame_image = image
+        self.current_frame_pixmap = QPixmap.fromImage(image)
+        self.update()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        size = event.size()
+        self.target_w = size.width()
+        self.target_h = size.height()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        rect = self.rect()
+        
+        if self.current_frame_pixmap and not self.current_frame_pixmap.isNull():
+            tx = (rect.width() - self.current_frame_pixmap.width()) // 2
+            ty = (rect.height() - self.current_frame_pixmap.height()) // 2
+            painter.drawPixmap(tx, ty, self.current_frame_pixmap)
+
 
 
 class QRScannerVisual(QWidget):
@@ -445,23 +560,7 @@ class PaymentState(QWidget):
         overlay_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         overlay_layout.setSpacing(20)
         
-        success_icon_box = QWidget()
-        success_icon_box.setFixedSize(120, 120)
-        success_icon_box.setStyleSheet("""
-            QWidget {
-                background-color: rgba(78, 222, 163, 0.1);
-                border: 2px solid #4edea3;
-                border-radius: 60px;
-            }
-        """)
-        ib_layout = QVBoxLayout(success_icon_box)
-        ib_layout.setContentsMargins(0, 0, 0, 0)
-        ib_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        check_icon = QLabel("check")
-        check_icon.setFont(QFont("Material Symbols Outlined", 56))
-        check_icon.setStyleSheet("color: #4edea3; background: transparent; border: none;")
-        ib_layout.addWidget(check_icon)
+        self.success_video = SuccessVideoWidget()
         
         self.success_title = QLabel("PAYMENT SUCCESSFUL")
         self.success_title.setFont(QFont("Space Grotesk", 28, QFont.Weight.Bold))
@@ -473,7 +572,7 @@ class PaymentState(QWidget):
         self.success_desc.setStyleSheet("color: #b9cacb; background: transparent; border: none;")
         self.success_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        overlay_layout.addWidget(success_icon_box, 0, Qt.AlignmentFlag.AlignCenter)
+        overlay_layout.addWidget(self.success_video, 0, Qt.AlignmentFlag.AlignCenter)
         overlay_layout.addWidget(self.success_title)
         overlay_layout.addWidget(self.success_desc)
         

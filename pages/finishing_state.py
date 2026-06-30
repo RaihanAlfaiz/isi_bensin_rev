@@ -1,77 +1,108 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGridLayout
-from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QTimer
-from PyQt6.QtGui import QPainter, QColor, QFont, QPen, QBrush, QPainterPath, QLinearGradient
+from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QTimer, QUrl, QRectF
+from PyQt6.QtGui import QPainter, QColor, QFont, QPen, QBrush, QPainterPath, QLinearGradient, QImage, QPixmap
+from PyQt6.QtMultimedia import QMediaPlayer, QVideoSink
+from config import BASE_DIR
 import math
 
-class EcoChartWidget(QWidget):
+class FinishedVideoCard(QWidget):
+    frame_received = pyqtSignal(QImage)
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(220, 220)
-        self.glow_phase = 0.0
+        self.setObjectName("right_card")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet("""
+            QWidget#right_card {
+                background: rgba(23, 31, 51, 0.7);
+                border: 1px solid rgba(78, 222, 163, 0.08);
+                border-radius: 24px;
+            }
+        """)
+        self.current_frame_image = None
+        self.current_frame_pixmap = None
+        self.is_active = False
+        self.target_w = 0
+        self.target_h = 0
         
-        # Animating the glow
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.animate)
-        self.timer.start(30)
+        self.media_player = QMediaPlayer()
+        self.video_sink = QVideoSink()
+        self.media_player.setVideoOutput(self.video_sink)
+        self.video_sink.videoFrameChanged.connect(self.on_video_frame_changed)
+        self.frame_received.connect(self.on_safe_frame_received)
         
-    def animate(self):
-        self.glow_phase += 0.05
-        if self.glow_phase >= 2 * math.pi:
-            self.glow_phase = 0.0
+        video_path = BASE_DIR / "resources" / "video" / "Animasi Selesai Cas Mobil.mp4"
+        self.media_player.setSource(QUrl.fromLocalFile(str(video_path)))
+        self.media_player.setLoops(QMediaPlayer.Loops.Infinite)
+        
+    def on_video_frame_changed(self, frame):
+        if not self.is_active or not frame.isValid():
+            return
+        img = frame.toImage()
+        if img.isNull():
+            return
+        w, h = self.target_w, self.target_h
+        if w > 0 and h > 0:
+            scaled_img = img.scaled(
+                w, h,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            self.frame_received.emit(scaled_img)
+
+    def on_safe_frame_received(self, img):
+        self.current_frame_image = img
+        self.current_frame_pixmap = QPixmap.fromImage(img)
         self.update()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.is_active = True
+        self.target_w = self.width()
+        self.target_h = self.height()
+        self.media_player.play()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.is_active = False
+        self.media_player.stop()
+        self.current_frame_image = None
+        self.current_frame_pixmap = None
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        size = event.size()
+        self.target_w = size.width()
+        self.target_h = size.height()
         
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
-        w = self.width()
-        h = self.height()
+        rect = self.rect()
         
-        # Background grid
-        painter.setPen(QPen(QColor(255, 255, 255, 8), 1))
-        for i in range(1, 5):
-            x = int(w * i / 5)
-            y = int(h * i / 5)
-            painter.drawLine(x, 0, x, h)
-            painter.drawLine(0, y, w, y)
-            
-        # Draw gradient fill under curve
+        # 1. Rounded Clip Path for the video card
         path = QPainterPath()
-        path.moveTo(0, h)
+        path.addRoundedRect(QRectF(rect), 24.0, 24.0)
         
-        p0 = QPointF(0, h * 0.85)
-        p1 = QPointF(w * 0.35, h * 0.75)
-        p2 = QPointF(w * 0.65, h * 0.35)
-        p3 = QPointF(w, h * 0.15)
+        # Draw background color
+        painter.fillPath(path, QBrush(QColor(23, 31, 51, int(255 * 0.7))))
         
-        path.cubicTo(p1, p2, p3)
-        path.lineTo(w, h)
-        path.closeSubpath()
-        
-        grad = QLinearGradient(0, 0, 0, h)
-        grad.setColorAt(0, QColor(78, 222, 163, 50))
-        grad.setColorAt(1, QColor(78, 222, 163, 0))
-        
-        painter.fillPath(path, grad)
-        
-        # Draw the curve line
-        curve_pen = QPen(QColor(78, 222, 163), 3)
-        painter.setPen(curve_pen)
-        
-        path_line = QPainterPath()
-        path_line.moveTo(p0)
-        path_line.cubicTo(p1, p2, p3)
-        painter.drawPath(path_line)
-        
-        # Draw end glowing node
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(78, 222, 163)))
-        painter.drawEllipse(p3, 6, 6)
-        
-        # Glow ring around node
-        glow_alpha = int(60 + 30 * math.sin(self.glow_phase))
-        painter.setBrush(QBrush(QColor(78, 222, 163, glow_alpha)))
-        painter.drawEllipse(p3, 12, 12)
+        # 2. Draw current frame
+        if self.current_frame_pixmap is not None and not self.current_frame_pixmap.isNull():
+            painter.save()
+            painter.setClipPath(path)
+            x = (rect.width() - self.current_frame_pixmap.width()) // 2
+            y = (rect.height() - self.current_frame_pixmap.height()) // 2
+            painter.drawPixmap(x, y, self.current_frame_pixmap)
+            painter.restore()
+                
+        # 3. Draw border
+        painter.setPen(QPen(QColor(78, 222, 163, int(255 * 0.08)), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), 24.0, 24.0)
+
+
 
 
 class DetailRow(QWidget):
@@ -296,116 +327,8 @@ class FinishingState(QWidget):
         audio_layout.addWidget(self.audio_txt, 1)
         
         left_layout.addWidget(self.audio_box)
-        
-        # Right Bento Card (Eco Graph)
-        self.right_card = QWidget()
-        self.right_card.setObjectName("right_card")
-        self.right_card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.right_card.setStyleSheet("""
-            QWidget#right_card {
-                background: rgba(23, 31, 51, 0.7);
-                border: 1px solid rgba(78, 222, 163, 0.08);
-                border-radius: 24px;
-            }
-        """)
-        right_layout = QVBoxLayout(self.right_card)
-        right_layout.setContentsMargins(28, 28, 28, 28)
-        right_layout.setSpacing(16)
-        
-        # Eco Header
-        eco_hdr_layout = QHBoxLayout()
-        
-        self.eco_title = QLabel("ECO GRAPH")
-        self.eco_title.setFont(QFont("Space Grotesk", 10, QFont.Weight.Bold))
-        self.eco_title.setStyleSheet("color: #b9cacb; letter-spacing: 1.5px; background: transparent;")
-        
-        eco_hdr_icon = QLabel("show_chart")
-        eco_hdr_icon.setFont(QFont("Material Symbols Outlined", 18))
-        eco_hdr_icon.setStyleSheet("color: #4edea3; background: transparent;")
-        
-        eco_hdr_layout.addWidget(self.eco_title)
-        eco_hdr_layout.addStretch()
-        eco_hdr_layout.addWidget(eco_hdr_icon)
-        right_layout.addLayout(eco_hdr_layout)
-        
-        # Eco Chart Container Widget
-        chart_container = QWidget()
-        chart_container.setStyleSheet("background: transparent;")
-        chart_container_layout = QVBoxLayout(chart_container)
-        chart_container_layout.setContentsMargins(0, 0, 0, 0)
-        
-        self.eco_chart = EcoChartWidget()
-        chart_container_layout.addWidget(self.eco_chart)
-        
-        # Text Overlay inside Chart
-        # Place it absolutely centered by setting overlay widgets
-        self.overlay_widget = QWidget(self.eco_chart)
-        self.overlay_widget.setStyleSheet("background: transparent;")
-        overlay_layout = QVBoxLayout(self.overlay_widget)
-        overlay_layout.setContentsMargins(0, 0, 0, 0)
-        overlay_layout.setSpacing(2)
-        overlay_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        self.eco_pct = QLabel("+92%")
-        self.eco_pct.setFont(QFont("Plus Jakarta Sans", 48, QFont.Weight.Bold))
-        self.eco_pct.setStyleSheet("color: #4edea3; background: transparent; border: none;")
-        self.eco_pct.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        self.eco_lbl = QLabel("Efficiency Rating")
-        self.eco_lbl.setFont(QFont("Space Grotesk", 10, QFont.Weight.Bold))
-        self.eco_lbl.setStyleSheet("color: #b9cacb; opacity: 0.8; background: transparent; border: none;")
-        self.eco_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        overlay_layout.addWidget(self.eco_pct)
-        overlay_layout.addWidget(self.eco_lbl)
-        
-        right_layout.addWidget(chart_container, 1)
-        
-        # Eco Info Grid (Bottom)
-        eco_grid = QHBoxLayout()
-        eco_grid.setSpacing(16)
-        
-        # Box 1
-        box1 = QWidget()
-        box1.setStyleSheet("background-color: rgba(45, 52, 73, 0.2); border-radius: 12px;")
-        b1_layout = QVBoxLayout(box1)
-        b1_layout.setContentsMargins(12, 12, 12, 12)
-        b1_layout.setSpacing(4)
-        b1_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        self.impact_lbl = QLabel("IMPACT")
-        self.impact_lbl.setFont(QFont("Inter", 8))
-        self.impact_lbl.setStyleSheet("color: #b9cacb; opacity: 0.8;")
-        
-        self.impact_val = QLabel("High")
-        self.impact_val.setFont(QFont("Plus Jakarta Sans", 14, QFont.Weight.Bold))
-        self.impact_val.setStyleSheet("color: #ffffff;")
-        
-        b1_layout.addWidget(self.impact_lbl)
-        b1_layout.addWidget(self.impact_val)
-        
-        # Box 2
-        box2 = QWidget()
-        box2.setStyleSheet("background-color: rgba(45, 52, 73, 0.2); border-radius: 12px;")
-        b2_layout = QVBoxLayout(box2)
-        b2_layout.setContentsMargins(12, 12, 12, 12)
-        b2_layout.setSpacing(4)
-        b2_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        self.source_lbl = QLabel("SOURCE")
-        self.source_lbl.setFont(QFont("Inter", 8))
-        self.source_lbl.setStyleSheet("color: #b9cacb; opacity: 0.8;")
-        
-        self.source_val = QLabel("Solar")
-        self.source_val.setFont(QFont("Plus Jakarta Sans", 14, QFont.Weight.Bold))
-        self.source_val.setStyleSheet("color: #ffffff;")
-        
-        b2_layout.addWidget(self.source_lbl)
-        b2_layout.addWidget(self.source_val)
-        
-        eco_grid.addWidget(box1)
-        eco_grid.addWidget(box2)
-        right_layout.addLayout(eco_grid)
+               # Right Bento Card (Finished Video Card)
+        self.right_card = FinishedVideoCard()
         
         columns_layout.addWidget(self.left_card, 7)
         columns_layout.addWidget(self.right_card, 5)
@@ -466,13 +389,6 @@ class FinishingState(QWidget):
         
         main_layout.addLayout(footer_layout)
         
-    def resizeEvent(self, event):
-        # Keep the text overlay centered inside the chart canvas
-        cw = self.eco_chart.width()
-        ch = self.eco_chart.height()
-        self.overlay_widget.resize(cw, ch)
-        super().resizeEvent(event)
-
     def on_finish_clicked(self):
         self.finish_clicked.emit()
         
@@ -487,12 +403,6 @@ class FinishingState(QWidget):
             self.cost_row.title_lbl.setText("Cost")
             self.co2_row.title_lbl.setText("CO₂ Saved")
             self.audio_txt.setText('"Please unplug your vehicle"')
-            self.eco_title.setText("ECO GRAPH")
-            self.eco_lbl.setText("Efficiency Rating")
-            self.impact_lbl.setText("IMPACT")
-            self.impact_val.setText("High")
-            self.source_lbl.setText("SOURCE")
-            self.source_val.setText("Solar")
             self.print_btn.setText("Print Receipt")
             self.finish_btn.setText("Finish Transaction")
         else: # id
@@ -504,12 +414,6 @@ class FinishingState(QWidget):
             self.cost_row.title_lbl.setText("Biaya")
             self.co2_row.title_lbl.setText("CO₂ Saved")
             self.audio_txt.setText('"Silakan cabut kendaraan Anda"')
-            self.eco_title.setText("ECO GRAPH")
-            self.eco_lbl.setText("Efficiency Rating")
-            self.impact_lbl.setText("IMPACT")
-            self.impact_val.setText("High")
-            self.source_lbl.setText("SOURCE")
-            self.source_val.setText("Solar")
             self.print_btn.setText("Print Receipt")
             self.finish_btn.setText("Finish Transaction")
             

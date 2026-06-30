@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGraphicsDropShadowEffect, QProgressBar, QSizePolicy
 from PyQt6.QtCore import Qt, QTimer, QRect, QRectF, QUrl, pyqtSignal
-from PyQt6.QtGui import QPainter, QColor, QFont, QPixmap, QLinearGradient, QPainterPath
+from PyQt6.QtGui import QPainter, QColor, QFont, QPixmap, QLinearGradient, QPainterPath, QImage
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput, QVideoSink
 from config import BASE_DIR
 
@@ -48,6 +48,8 @@ class PulsingDot(QWidget):
 
 
 class FullscreenVideoPlayer(QWidget):
+    frame_received = pyqtSignal(QImage)
+
     def __init__(self, media_player, inline_container):
         super().__init__()
         self.media_player = media_player
@@ -58,7 +60,12 @@ class FullscreenVideoPlayer(QWidget):
         
         self.video_sink = QVideoSink()
         self.video_sink.videoFrameChanged.connect(self.on_video_frame_changed)
+        self.frame_received.connect(self.on_safe_frame_received)
         self.current_frame_image = None
+        self.current_frame_pixmap = None
+        self.is_active = False
+        self.target_w = 0
+        self.target_h = 0
         
         self.is_playing = (self.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState)
         
@@ -209,10 +216,49 @@ class FullscreenVideoPlayer(QWidget):
         self.update_control_ui()
         
     def on_video_frame_changed(self, frame):
-        if not frame.isValid():
+        if not self.is_active or not frame.isValid():
             return
-        self.current_frame_image = frame.toImage()
+        img = frame.toImage()
+        if img.isNull():
+            return
+        w, h = self.target_w, self.target_h
+        if w > 0 and h > 0:
+            target_ratio = 16.0 / 9.0
+            if w / h > target_ratio:
+                new_h = h
+                new_w = int(h * target_ratio)
+            else:
+                new_w = w
+                new_h = int(w / target_ratio)
+            scaled_img = img.scaled(
+                new_w, new_h,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            self.frame_received.emit(scaled_img)
+
+    def on_safe_frame_received(self, img):
+        self.current_frame_image = img
+        self.current_frame_pixmap = QPixmap.fromImage(img)
         self.update()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.is_active = True
+        self.target_w = self.width()
+        self.target_h = self.height()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.is_active = False
+        self.current_frame_image = None
+        self.current_frame_pixmap = None
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        size = event.size()
+        self.target_w = size.width()
+        self.target_h = size.height()
         
     def toggle_play(self):
         if self.is_playing:
@@ -303,16 +349,11 @@ class FullscreenVideoPlayer(QWidget):
         video_rect = QRect(x, y, new_w, new_h)
         
         drawn = False
-        if self.current_frame_image is not None and not self.current_frame_image.isNull():
-            pix = QPixmap.fromImage(self.current_frame_image)
-            if not pix.isNull():
-                scaled_pix = pix.scaled(
-                    video_rect.size(),
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation
-                )
-                painter.drawPixmap(video_rect, scaled_pix)
-                drawn = True
+        if self.current_frame_pixmap is not None and not self.current_frame_pixmap.isNull():
+            px = x + (new_w - self.current_frame_pixmap.width()) // 2
+            py = y + (new_h - self.current_frame_pixmap.height()) // 2
+            painter.drawPixmap(px, py, self.current_frame_pixmap)
+            drawn = True
                 
         if not drawn:
             painter.fillRect(video_rect, QColor(0, 0, 0))
@@ -321,6 +362,8 @@ class FullscreenVideoPlayer(QWidget):
 
 
 class VideoContainer(QWidget):
+    frame_received = pyqtSignal(QImage)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.pixmap = QPixmap(str(BASE_DIR / "resources" / "images" / "plug_in_guide.jpg"))
@@ -328,7 +371,12 @@ class VideoContainer(QWidget):
         self.video_position = 0
         self.video_duration = 0
         self.current_frame_image = None
+        self.current_frame_pixmap = None
+        self.cover_pixmap_cached = None
         self.fullscreen_player = None
+        self.is_active = False
+        self.target_w = 0
+        self.target_h = 0
         
         # 1. Media Player setup
         self.media_player = QMediaPlayer()
@@ -340,8 +388,9 @@ class VideoContainer(QWidget):
         self.video_sink = QVideoSink()
         self.media_player.setVideoOutput(self.video_sink)
         self.video_sink.videoFrameChanged.connect(self.on_video_frame_changed)
+        self.frame_received.connect(self.on_safe_frame_received)
         
-        video_path = BASE_DIR / "resources" / "video" / "Cable_plugs_into_electric_vehicle_202606170216.mp4"
+        video_path = BASE_DIR / "resources" / "video" / "Animasi Mobil Cas.mp4"
         self.media_player.setSource(QUrl.fromLocalFile(str(video_path)))
         self.media_player.setLoops(QMediaPlayer.Loops.Infinite)
         
@@ -511,9 +560,23 @@ class VideoContainer(QWidget):
         layout.addWidget(self.control_bar)
         
     def on_video_frame_changed(self, frame):
-        if not frame.isValid():
+        if not self.is_active or not frame.isValid():
             return
-        self.current_frame_image = frame.toImage()
+        img = frame.toImage()
+        if img.isNull():
+            return
+        w, h = self.target_w, self.target_h
+        if w > 0 and h > 0:
+            scaled_img = img.scaled(
+                w, h,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            self.frame_received.emit(scaled_img)
+
+    def on_safe_frame_received(self, img):
+        self.current_frame_image = img
+        self.current_frame_pixmap = QPixmap.fromImage(img)
         self.update()
         
     def toggle_play(self):
@@ -565,10 +628,41 @@ class VideoContainer(QWidget):
         dur_s = dur_sec % 60
         
         self.time_lbl.setText(f"{pos_m:02d}:{pos_s:02d} / {dur_m:02d}:{dur_s:02d}")
-        
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.is_active = True
+        self.target_w = self.width()
+        self.target_h = self.height()
+        self.update_cover_cache()
+        if self.is_playing:
+            self.media_player.play()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.is_active = False
+        self.media_player.stop()
+        self.current_frame_image = None
+        self.current_frame_pixmap = None
+        self.cover_pixmap_cached = None
+
+    def update_cover_cache(self):
+        w, h = self.target_w, self.target_h
+        if w > 0 and h > 0 and not self.pixmap.isNull():
+            self.cover_pixmap_cached = self.pixmap.scaled(
+                w, h,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation
+            )
+        else:
+            self.cover_pixmap_cached = None
+
     def resizeEvent(self, event):
-        self.update()
         super().resizeEvent(event)
+        size = event.size()
+        self.target_w = size.width()
+        self.target_h = size.height()
+        self.update_cover_cache()
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -579,35 +673,25 @@ class VideoContainer(QWidget):
         # 1. Rounded Clip Path
         path = QPainterPath()
         path.addRoundedRect(QRectF(rect), 30.0, 30.0)
+        painter.save()
         painter.setClipPath(path)
         
         # 2. Draw Frame or Cover Image
         drawn = False
-        if self.current_frame_image is not None and not self.current_frame_image.isNull():
-            pix = QPixmap.fromImage(self.current_frame_image)
-            if not pix.isNull():
-                scaled_pix = pix.scaled(
-                    rect.size(),
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                    Qt.TransformationMode.SmoothTransformation
-                )
-                src_x = (scaled_pix.width() - rect.width()) // 2
-                src_y = (scaled_pix.height() - rect.height()) // 2
-                painter.drawPixmap(rect, scaled_pix, QRect(src_x, src_y, rect.width(), rect.height()))
-                drawn = True
+        if self.current_frame_pixmap is not None and not self.current_frame_pixmap.isNull():
+            src_x = (self.current_frame_pixmap.width() - rect.width()) // 2
+            src_y = (self.current_frame_pixmap.height() - rect.height()) // 2
+            painter.drawPixmap(rect, self.current_frame_pixmap, QRect(src_x, src_y, rect.width(), rect.height()))
+            drawn = True
                 
-        if not drawn and not self.pixmap.isNull():
-            scaled_pix = self.pixmap.scaled(
-                rect.size(),
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            src_x = (scaled_pix.width() - rect.width()) // 2
-            src_y = (scaled_pix.height() - rect.height()) // 2
-            painter.drawPixmap(rect, scaled_pix, QRect(src_x, src_y, rect.width(), rect.height()))
+        if not drawn and self.cover_pixmap_cached is not None and not self.cover_pixmap_cached.isNull():
+            src_x = (self.cover_pixmap_cached.width() - rect.width()) // 2
+            src_y = (self.cover_pixmap_cached.height() - rect.height()) // 2
+            painter.drawPixmap(rect, self.cover_pixmap_cached, QRect(src_x, src_y, rect.width(), rect.height()))
             
         # 3. Transparent tint overlay for movie screen aesthetic
         painter.fillRect(rect, QColor(11, 19, 38, 140)) # mix-blend dark opacity
+        painter.restore()
         
         # 4. Subtle inner border glow
         painter.setPen(QColor(0, 219, 233, 25))
